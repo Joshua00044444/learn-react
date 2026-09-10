@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>React 验证:onClick 传函数 vs 传执行结果</title>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0b1220; color: #e2e8f0; font-family: system-ui, "Microsoft YaHei", sans-serif; padding: 24px; }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 8px; }
+  .intro { color: #94a3b8; font-size: 14px; line-height: 1.8; margin-bottom: 20px; }
+  code, pre { font-family: Consolas, "JetBrains Mono", monospace; }
+  .intro code { background: #1e293b; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .card { background: #111a2e; border: 1px solid #24324d; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .card h2 { font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card h2 code { color: #7dd3fc; font-size: 14px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .tag.ok { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.4); }
+  .tag.bad { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.4); }
+  .tag.info { background: rgba(96,165,250,.15); color: #60a5fa; border: 1px solid rgba(96,165,250,.4); }
+  pre { background: #0b1220; border: 1px solid #24324d; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #7dd3fc; overflow-x: auto; line-height: 1.6; }
+  .big { padding: 12px 16px; font-size: 15px; border-radius: 8px; border: 1px solid #3b82f6; background: #1d4ed8; color: #fff; cursor: pointer; }
+  .big:hover { background: #2563eb; }
+  .big.bad { border-color: #ef4444; background: #7f1d1d; }
+  .big.bad:hover { background: #991b1b; }
+  .big.info { border-color: #60a5fa; background: #1e3a8a; }
+  .remount { padding: 8px 12px; font-size: 13px; border-radius: 8px; border: 1px dashed #475569; background: transparent; color: #cbd5e1; cursor: pointer; }
+  .remount:hover { border-color: #94a3b8; }
+  .note { font-size: 12.5px; line-height: 1.7; padding: 8px 10px; border-radius: 8px; }
+  .note.bad { background: rgba(239,68,68,.08); color: #fca5a5; }
+  .note.ok { background: rgba(34,197,94,.08); color: #86efac; }
+  .note.info { background: rgba(96,165,250,.08); color: #93c5fd; }
+  .logs { flex: 1; min-height: 150px; max-height: 260px; overflow-y: auto; background: #0b1220; border: 1px solid #24324d; border-radius: 8px; padding: 8px 10px; font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.9; }
+  .logs .empty { color: #475569; }
+  .log-time { color: #64748b; margin-right: 4px; }
+  footer { margin-top: 20px; color: #64748b; font-size: 13px; line-height: 1.9; }
+  footer code { background: #1e293b; padding: 1px 6px; border-radius: 4px; color: #7dd3fc; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+function now() {
+  const d = new Date();
+  return d.toLocaleTimeString("zh-CN", { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0");
+}
+
+// 日志直接写 DOM(绕开 React 状态),保证时间顺序真实、不受渲染干扰
+function log(panelId, msg, color) {
+  const box = document.getElementById(panelId);
+  if (!box) return; // 首次渲染提交到 DOM 之前,日志容器还不存在
+  const empty = box.querySelector(".empty");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  const t = document.createElement("span");
+  t.className = "log-time";
+  t.textContent = "[" + now() + "] ";
+  const m = document.createElement("span");
+  m.textContent = msg;
+  m.style.color = color || "#cbd5e1";
+  row.appendChild(t);
+  row.appendChild(m);
+  box.prepend(row);
+  while (box.children.length > 100) box.removeChild(box.lastChild);
+}
+
+/* ─────────── 卡片 A:✅ 正确写法 ─────────── */
+function GoodButton({ logId }) {
+  useEffect(() => {
+    log(logId, "组件挂载完成:onClick={handleClick} → 只登记了函数,handleClick 没有执行", "#94a3b8");
+  }, []);
+  function handleClick() {
+    log(logId, "handleClick 执行!(由用户点击触发)", "#4ade80");
+    alert("You clicked me!");
+  }
+  return <button className="big" onClick={handleClick}>点我(只有点了才有反应)</button>;
+}
+
+/* ─────────── 卡片 B:❌ 错误写法 ─────────── */
+function BadButton({ logId }) {
+  useEffect(() => {
+    log(logId, "组件挂载完成:注意!刚才那个 alert 就是渲染期间弹出的,此刻你还没点过任何东西", "#fca5a5");
+  }, []);
+  function handleClick() {
+    log(logId, "handleClick 执行!触发者:渲染过程(不是点击!)", "#f87171");
+    alert("You clicked me! —— 但你其实还没点,这是渲染时执行的 :)");
+    return undefined; // onClick 最终拿到的就是这个 undefined
+  }
+  // ❌ ():为了构造 { onClick: 求值结果 },渲染时当场调用,返回值 undefined 被登记进去
+  return <button className="big bad" onClick={handleClick()}>点我(点了也没反应)</button>;
+}
+
+/* ─────────── 卡片 C:🧩 带参数的正确写法 ─────────── */
+function ArgButton({ logId }) {
+  useEffect(() => {
+    log(logId, "组件挂载完成:onClick={() => say('hi')} → 登记的是箭头函数,say 也没执行", "#94a3b8");
+  }, []);
+  function say(word) {
+    log(logId, "say('" + word + "') 执行!(点击时 React 调箭头函数,内部再带参调用 say)", "#60a5fa");
+    alert("You said: " + word);
+  }
+  return <button className="big info" onClick={() => say("hi")}>点我带参数(箭头函数包一层)</button>;
+}
+
+/* ─────────── 通用卡片外壳 ─────────── */
+function Card(props) {
+  const [k, setK] = useState(0);
+  const C = props.Comp;
+  return (
+    <section className="card">
+      <h2>
+        <span className={"tag " + props.tagClass}>{props.tag}</span>
+        <code>{props.title}</code>
+      </h2>
+      <pre>{props.code}</pre>
+      <div className={"note " + props.noteClass}>{props.note}</div>
+      <C key={k} logId={props.logId} />
+      <button
+        className="remount"
+        onClick={() => {
+          log(props.logId, "手动重新挂载组件,触发一次渲染 ↓", "#60a5fa");
+          setK(k + 1);
+        }}
+      >
+        🔄 重新挂载(触发渲染,观察渲染瞬间)
+      </button>
+      <div className="logs" id={props.logId}>
+        <div className="empty">暂无日志…</div>
+      </div>
+    </section>
+  );
+}
+
+function App() {
+  return (
+    <div className="wrap">
+      <h1>🔍 验证:onClick 传的是「函数」还是「执行结果」</h1>
+      <p className="intro">
+        每张卡片里的 <b>🔄 重新挂载</b> 会卸载并重新渲染上面的组件,用来反复观察「渲染瞬间」发生了什么。
+        <br />
+        <b style={{ color: "#fca5a5" }}>
+          提示:打开本页的一瞬间,右侧红色卡片就会自己弹出一个 alert —— 你一次都没点,它就执行了,这就是「渲染时执行」的直接证据。
+        </b>
+      </p>
+
+      <div className="cards">
+        <Card
+          tag="✅ 正确" tagClass="ok"
+          title="onClick={handleClick}"
+          code={"<button onClick={handleClick}>\n  点我\n</button>"}
+          note="传的是函数本身:渲染时只登记、不执行;点击时才由 React 调用。"
+          noteClass="ok" logId="logs-a" Comp={GoodButton}
+        />
+        <Card
+          tag="❌ 错误" tagClass="bad"
+          title="onClick={handleClick()}"
+          code={"<button onClick={handleClick()}>\n  点我\n</button>"}
+          note="() 让函数在渲染阶段为了求值而当场执行;onClick 里登记的只是返回值 undefined,之后点击无效。"
+          noteClass="bad" logId="logs-b" Comp={BadButton}
+        />
+        <Card
+          tag="🧩 带参数" tagClass="info"
+          title="onClick={() => say('hi')}"
+          code={"<button onClick={() => say('hi')}>\n  点我\n</button>"}
+          note="箭头函数本身没有被调用,渲染时只登记;点击时 React 调用箭头函数,它内部再带参数调 say('hi')。"
+          noteClass="info" logId="logs-c" Comp={ArgButton}
+        />
+      </div>
+
+      <footer>
+        本页面用 React 18 + Babel Standalone 在浏览器里现场编译 JSX,无需构建工具,联网状态下直接双击打开即可。
+        <br />
+        结论:<code>{"{handleClick}"}</code> 登记函数、渲染时不执行;<code>{"{handleClick()}"}</code> 为了求值、渲染时当场执行。
+        执行时机由「你递过去的是什么」决定,onClick 属性本身管不了。
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
