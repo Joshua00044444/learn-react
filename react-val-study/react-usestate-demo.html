@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>React 验证:useState 与「更新界面」</title>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0b1220; color: #e2e8f0; font-family: system-ui, "Microsoft YaHei", sans-serif; padding: 24px; }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 8px; }
+  .intro { color: #94a3b8; font-size: 14px; line-height: 1.8; margin-bottom: 20px; }
+  .intro a { color: #7dd3fc; }
+  code, pre { font-family: Consolas, "JetBrains Mono", monospace; }
+  .intro code { background: #1e293b; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .card { background: #111a2e; border: 1px solid #24324d; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .card h2 { font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card h2 code { color: #7dd3fc; font-size: 14px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .tag.ok { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.4); }
+  .tag.bad { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.4); }
+  .tag.info { background: rgba(96,165,250,.15); color: #60a5fa; border: 1px solid rgba(96,165,250,.4); }
+  pre { background: #0b1220; border: 1px solid #24324d; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #7dd3fc; overflow-x: auto; line-height: 1.6; }
+  .note { font-size: 12.5px; line-height: 1.7; padding: 8px 10px; border-radius: 8px; }
+  .note.ok { background: rgba(34,197,94,.08); color: #86efac; }
+  .note.info { background: rgba(96,165,250,.08); color: #93c5fd; }
+  .live { display: flex; flex-direction: column; gap: 10px; }
+  .live .row2 { display: flex; gap: 12px; flex-wrap: wrap; }
+  .big { padding: 12px 16px; font-size: 15px; border-radius: 8px; border: 1px solid #3b82f6; background: #1d4ed8; color: #fff; cursor: pointer; }
+  .big:hover { background: #2563eb; }
+  .big.ok { border-color: #22c55e; background: #14532d; }
+  .big.ok:hover { background: #166534; }
+  .big.bad { border-color: #ef4444; background: #7f1d1d; }
+  .big.bad:hover { background: #991b1b; }
+  .big.info { border-color: #60a5fa; background: #1e3a8a; }
+  .big.info:hover { background: #1e40af; }
+  .remount { padding: 8px 12px; font-size: 13px; border-radius: 8px; border: 1px dashed #475569; background: transparent; color: #cbd5e1; cursor: pointer; }
+  .remount:hover { border-color: #94a3b8; }
+  .big-display { font-size: 26px; font-weight: 700; color: #f8fafc; }
+  .kv { font-size: 14px; color: #cbd5e1; }
+  .kv b { color: #fbbf24; font-size: 17px; }
+  .logs { flex: 1; min-height: 120px; max-height: 240px; overflow-y: auto; background: #0b1220; border: 1px solid #24324d; border-radius: 8px; padding: 8px 10px; font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.9; }
+  .logs .empty { color: #475569; }
+  .log-time { color: #64748b; margin-right: 4px; }
+  footer { margin-top: 20px; color: #64748b; font-size: 13px; line-height: 1.9; }
+  footer code { background: #1e293b; padding: 1px 6px; border-radius: 4px; color: #7dd3fc; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+function now() {
+  const d = new Date();
+  return d.toLocaleTimeString("zh-CN", { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0");
+}
+
+// 日志直接写 DOM(绕开 React 状态),保证时间顺序真实、不受渲染干扰
+function log(panelId, msg, color) {
+  const box = document.getElementById(panelId);
+  if (!box) return; // 首次渲染提交到 DOM 之前,日志容器还不存在
+  const empty = box.querySelector(".empty");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  const t = document.createElement("span");
+  t.className = "log-time";
+  t.textContent = "[" + now() + "] ";
+  const m = document.createElement("span");
+  m.textContent = msg;
+  m.style.color = color || "#cbd5e1";
+  row.appendChild(t);
+  row.appendChild(m);
+  box.prepend(row);
+  while (box.children.length > 100) box.removeChild(box.lastChild);
+}
+
+/* ─────────── 卡片 A:官方「更新界面」示例 ─────────── */
+function MyButton({ label, logId }) {
+  const [count, setCount] = useState(0);
+  function handleClick() {
+    setCount(count + 1);
+    log(logId, label + " 的 handleClick 执行:setCount(" + (count + 1) + ")", "#4ade80");
+  }
+  return (
+    <button className="big" onClick={handleClick}>
+      {label}:点了 {count} 次
+    </button>
+  );
+}
+
+function OfficialDemo({ logId }) {
+  return (
+    <div className="row2">
+      <MyButton logId={logId} label="按钮 A" />
+      <MyButton logId={logId} label="按钮 B" />
+    </div>
+  );
+}
+
+/* ─────────── 卡片 B:渲染快照 ─────────── */
+function SnapshotDemo({ logId }) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    log(logId, "重新渲染完成:界面显示 count=" + count, "#94a3b8");
+  });
+  function handleClick() {
+    setCount(count + 1);
+    alert("本次渲染的快照里 count=" + count + "(旧值)。\nsetCount 只是预约下一次渲染,不会立刻改掉本次的 count。");
+    log(logId, "handleClick:setCount 已预约,但本次快照里 count 仍是 " + count, "#60a5fa");
+  }
+  return (
+    <div>
+      <div className="big-display">count = {count}</div>
+      <button className="big info" onClick={handleClick}>点我:先 setCount 再 alert(count)</button>
+    </div>
+  );
+}
+
+/* ─────────── 卡片 C:一次事件里连续 setState ─────────── */
+function BatchDemo({ logId }) {
+  const [count, setCount] = useState(0);
+  function addOnce() {
+    setCount(count + 1);
+    setCount(count + 1);
+    setCount(count + 1);
+    log(logId, "连续三次 setCount(count+1):三次都基于同一个旧快照 → React 合并后只 +1", "#f87171");
+  }
+  function addThrice() {
+    setCount(c => c + 1);
+    setCount(c => c + 1);
+    setCount(c => c + 1);
+    log(logId, "连续三次 setCount(c=>c+1):更新函数被排队、依次执行 → 共 +3", "#4ade80");
+  }
+  function reset() {
+    setCount(0);
+    log(logId, "重置:setCount(0)", "#94a3b8");
+  }
+  return (
+    <div>
+      <div className="big-display">count = {count}</div>
+      <button className="big bad" onClick={addOnce}>setCount(count+1) ×3 → 只 +1</button>
+      <button className="big ok" onClick={addThrice}>setCount(c=&gt;c+1) ×3 → +3</button>
+      <button className="remount" onClick={reset}>🔄 重置</button>
+    </div>
+  );
+}
+
+/* ─────────── 卡片 D:普通变量 vs state ─────────── */
+function VarDemo({ logId }) {
+  let clicks = 0; // 普通局部变量:每次渲染都被重新初始化
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    log(logId, "组件函数从头执行了一遍:局部变量 clicks 重新初始化为 0(所以必须用 state 存信息)", "#94a3b8");
+  });
+  return (
+    <div>
+      <div className="kv">局部变量 clicks = <b>{clicks}</b>(点按钮试试,界面纹丝不动)</div>
+      <div className="kv">state n = <b>{n}</b>(点这个,才会触发重渲染)</div>
+      <button
+        className="big bad"
+        onClick={() => {
+          clicks += 1;
+          log(logId, "clicks += 1 → 现在局部变量是 " + clicks + ",但 React 毫不知情,不会重渲染", "#f87171");
+        }}
+      >
+        clicks += 1(改了也白改)
+      </button>
+      <button className="big info" onClick={() => setN(n + 1)}>setN(n+1) 触发重渲染(clicks 被重置为 0)</button>
+    </div>
+  );
+}
+
+/* ─────────── 通用卡片外壳 ─────────── */
+function Card(props) {
+  return (
+    <section className="card">
+      <h2>
+        <span className={"tag " + props.tagClass}>{props.tag}</span>
+        <code>{props.title}</code>
+      </h2>
+      <pre>{props.code}</pre>
+      <div className={"note " + props.noteClass}>{props.note}</div>
+      <div className="live">{props.children}</div>
+      <div className="logs" id={props.logId}>
+        <div className="empty">暂无日志…</div>
+      </div>
+    </section>
+  );
+}
+
+function App() {
+  return (
+    <div className="wrap">
+      <h1>🔍 验证:useState —— 组件如何「记住」信息并更新界面</h1>
+      <p className="intro">
+        本页验证 React 官方文档快速入门(<a href="https://zh-hans.react.dev/learn" target="_blank" rel="noreferrer">zh-hans.react.dev/learn</a>)的
+        「<b>更新界面</b>」一节;<code>onClick</code> 传函数的部分见 <code>react-onclick-demo.html</code>。
+        <br />
+        四张卡片分别对应四个问题:① 官方计数器长什么样;② 事件处理器里读到的是哪个 count;③ 一次点三下 setState 会发生什么;④ 为什么必须用 state 而不是普通变量。
+      </p>
+
+      <div className="cards">
+        <Card
+          tag="📖 官方示例" tagClass="ok"
+          title="useState 计数器"
+          code={"function MyButton() {\n  const [count, setCount] = useState(0);\n  function handleClick() {\n    setCount(count + 1);\n  }\n  return (\n    <button onClick={handleClick}>\n      点了 {count} 次\n    </button>\n  );\n}"}
+          note="两个 <MyButton/> 各自持有独立的 state,点 A 不影响 B —— state 是组件实例私有的。"
+          noteClass="ok" logId="logs-a"
+        >
+          <OfficialDemo logId="logs-a" />
+        </Card>
+
+        <Card
+          tag="📸 快照" tagClass="info"
+          title="事件里读到的 count 是旧值"
+          code={"function handleClick() {\n  setCount(count + 1);\n  alert(count); // 还是旧值!\n}"}
+          note="state 像「快照」:本次渲染期间 count 的值已固定,setCount 只是预约下一次渲染,不会立刻改掉本次的 count。"
+          noteClass="info" logId="logs-b"
+        >
+          <SnapshotDemo logId="logs-b" />
+        </Card>
+
+        <Card
+          tag="⚡ 批处理" tagClass="bad"
+          title="一次事件里连续 setState"
+          code={"setCount(count + 1);\nsetCount(count + 1); // 都基于旧快照\nsetCount(count + 1); // 合并后只 +1\n\n// 想要连加 3 次,用函数式更新:\nsetCount(c => c + 1);\nsetCount(c => c + 1);\nsetCount(c => c + 1); // +3"}
+          note="同一事件里的多次 setState 会被合并处理。普通写法三次都基于同一个旧值;函数式写法拿到的是「队列里最新值」,依次执行。"
+          noteClass="ok" logId="logs-c"
+        >
+          <BatchDemo logId="logs-c" />
+        </Card>
+
+        <Card
+          tag="🔬 对照" tagClass="bad"
+          title="普通变量为什么不行"
+          code={"let clicks = 0; // 每次渲染都被重置\n\n<button onClick={() => {\n  clicks += 1; // React 不知道,不重渲染\n}}>"}
+          note="组件每次渲染都会重新执行函数,局部变量随之重新初始化。而且直接改普通变量不会通知 React 重渲染。信息要跨渲染「记住」,必须放进 state。"
+          noteClass="info" logId="logs-d"
+        >
+          <VarDemo logId="logs-d" />
+        </Card>
+      </div>
+
+      <footer>
+        本页面用 React 18 + Babel Standalone 在浏览器里现场编译 JSX,无需构建工具,联网状态下直接双击打开即可。
+        <br />
+        结论:① state 存在 React 内部,重渲染时「记住」旧值,普通局部变量每次渲染都被重置;
+        ② 事件处理器读到的是本次渲染的<code>快照</code>;
+        ③ 一次事件里多次 <code>{"setCount(count+1)"}</code> 会合并(只 +1),要连加用函数式 <code>{"setCount(c => c+1)"}</code>;
+        ④ <code>{"useState(0)"}</code> 返回的数组第一项是当前值、第二项是「预约重渲染并更新」的函数。
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
