@@ -4,6 +4,7 @@ React 学习项目。目前包含一组入门核心概念的笔记和几个可�
 笔记中的 React 技术知识,来自 D 盘的 **DeepSeekMonitorWindows-1** 项目。
 
 **官方教程(对照学习):** <https://zh-hans.react.dev/learn> —— React 中文文档「快速入门」,`react-val-study/` 里的验证页面即针对该文档的「更新界面」等小节编写。
+**React 参考(查 Hook / API):** <https://zh-hans.react.dev/reference/react> —— 全部 Hook、组件与 API 的官方参考手册。
 
 ## 目录结构
 
@@ -13,7 +14,8 @@ learn-react/
 ├── react-val-study/                   ← 所有可交互验证页面(双击打开,需联网加载 CDN)
 │   ├── react-onclick-demo.html        ← 验证:onClick 传函数 vs 传执行结果
 │   ├── react-usestate-demo.html       ← 验证:useState 与「更新界面」
-│   └── react-sharing-state-demo.html  ← 验证:组件间共享数据(状态提升)
+│   ├── react-sharing-state-demo.html  ← 验证:组件间共享数据(状态提升)
+│   └── react-hooks-demo.html          ← 验证:常用 Hook(State/Ref/Effect/Context/性能)
 └── notes/
     ├── 01-JSX-是什么.md
     ├── 02-JSX-与-JS-的区别.md
@@ -33,7 +35,7 @@ learn-react/
 3. **[React 的本质](notes/03-React-的本质.md)** — React 100% 是 JS,它约定的是"如何用 JS 构建 UI"的规则(声明式、单向数据流、状态驱动)。
 4. **[onClick:传函数还是传执行结果](notes/04-onClick-传函数-还是-传执行结果.md)** — `{handleClick}` vs `{handleClick()}`,含实测数据。
 5. **[useState:状态与更新界面](notes/05-useState-状态与更新界面.md)** — state 快照、批处理、函数式更新,含实测数据。
-6. **[Hook 是什么](notes/06-Hook-是什么.md)** — 以 `use` 开头的特殊函数,函数组件挂接 React 特性的入口;两条调用铁律与自定义 Hook。
+6. **[Hook 是什么](notes/06-Hook-是什么.md)** — 以 `use` 开头的特殊函数,函数组件挂接 React 特性的入口;两条调用铁律、自定义 Hook,以及常用 Hook 按官方参考分类详解(State/Context/Ref/Effect/性能)。
 7. **[组件间共享数据](notes/07-组件间共享数据.md)** — state 是实例私有的;要共享就提升到最近公共父组件,props 下发、回调上报;含「两层 onClick」的辨析。
 
 ## 验证页面使用方法
@@ -66,9 +68,20 @@ learn-react/
 | 🎯 单一数据源 | 手风琴为何能同时只展开一个? | `activeIndex` 一格 state 派生出两块面板的展开状态 |
 | 🔬 对照 | 把 props 拷进子组件 state 行不行? | 只拷到首次渲染的初值,之后必然失步 |
 
+`react-hooks-demo.html` 里有五张卡片,按官方参考分类验证常用 Hook:
+
+| 卡片 | 分类 | 验证内容 |
+|------|------|---------|
+| 🎛️ State Hook | `useState` / `useReducer` | 两种计数器并排:`dispatch(add)` 与 `setCount` 效果一致,useReducer 把更新逻辑集中到纯函数 |
+| 📦 Ref Hook | `useRef` | `inputRef.current.focus()` 命令式聚焦;改 `ref.current` 不触发重渲染,重渲染后值「现形」 |
+| ⏱️ Effect Hook | `useEffect` | `[]` 只在挂载后跑一次;`[count]` 依赖变了才跑,且清理函数先于新 effect 执行 |
+| 🌳 Context Hook | `useContext` | 父组件切主题,孙子组件直接读到新值,中间层一个 props 都没传 |
+| ⚡ 性能 Hook | `useMemo` | 无关 state 触发重渲染,普通计算每次重算,useMemo 命中缓存;n 变了才真算 |
+
 ## 核心结论速查
 
 - JSX 是语法糖,最终都是纯 JS 在跑
 - `{}` 里的表达式在**渲染时求值**——写 `()` 就当场调用,不写 `()` 只登记
 - 传给事件的永远是"菜谱"(函数),不是"做好的菜"(执行结果)
 - 要共享的状态提升到最近公共父组件:props 下发数据,回调上报变化;同一份数据只存一处
+- 界面要显示的用 state,界面不显示但要记住的用 ref;useEffect 靠依赖数组决定何时跑,清理函数先于下一次执行

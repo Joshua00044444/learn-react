@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>React 验证:常用 Hook(State / Ref / Effect / Context / 性能)</title>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0b1220; color: #e2e8f0; font-family: system-ui, "Microsoft YaHei", sans-serif; padding: 24px; }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 8px; }
+  .intro { color: #94a3b8; font-size: 14px; line-height: 1.8; margin-bottom: 20px; }
+  .intro a { color: #7dd3fc; }
+  code, pre { font-family: Consolas, "JetBrains Mono", monospace; }
+  .intro code { background: #1e293b; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .card { background: #111a2e; border: 1px solid #24324d; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .card h2 { font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card h2 code { color: #7dd3fc; font-size: 14px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .tag.ok { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.4); }
+  .tag.bad { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.4); }
+  .tag.info { background: rgba(96,165,250,.15); color: #60a5fa; border: 1px solid rgba(96,165,250,.4); }
+  pre { background: #0b1220; border: 1px solid #24324d; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #7dd3fc; overflow-x: auto; line-height: 1.6; }
+  .note { font-size: 12.5px; line-height: 1.7; padding: 8px 10px; border-radius: 8px; }
+  .note.ok { background: rgba(34,197,94,.08); color: #86efac; }
+  .note.info { background: rgba(96,165,250,.08); color: #93c5fd; }
+  .live { display: flex; flex-direction: column; gap: 10px; }
+  .live .row2 { display: flex; gap: 12px; flex-wrap: wrap; }
+  .big { padding: 12px 16px; font-size: 15px; border-radius: 8px; border: 1px solid #3b82f6; background: #1d4ed8; color: #fff; cursor: pointer; }
+  .big:hover { background: #2563eb; }
+  .big.ok { border-color: #22c55e; background: #14532d; }
+  .big.ok:hover { background: #166534; }
+  .big.bad { border-color: #ef4444; background: #7f1d1d; }
+  .big.bad:hover { background: #991b1b; }
+  .big.info { border-color: #60a5fa; background: #1e3a8a; }
+  .big.info:hover { background: #1e40af; }
+  .remount { padding: 8px 12px; font-size: 13px; border-radius: 8px; border: 1px dashed #475569; background: transparent; color: #cbd5e1; cursor: pointer; }
+  .remount:hover { border-color: #94a3b8; }
+  .kv { font-size: 14px; color: #cbd5e1; }
+  .kv b { color: #fbbf24; font-size: 17px; }
+  .panel { border: 1px solid #24324d; border-radius: 8px; padding: 10px 12px; background: #0b1220; }
+  .panel.open { border-color: #3b82f6; }
+  .panel h3 { display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #cbd5e1; gap: 8px; }
+  .panel p { margin-top: 8px; font-size: 13px; color: #94a3b8; line-height: 1.7; }
+  .mini { padding: 4px 14px; font-size: 12.5px; border-radius: 6px; border: 1px solid #3b82f6; background: transparent; color: #93c5fd; cursor: pointer; white-space: nowrap; }
+  .mini:hover { background: rgba(59,130,246,.15); }
+  .inputs { padding: 8px 12px; font-size: 14px; border-radius: 8px; border: 1px solid #24324d; background: #0b1220; color: #e2e8f0; outline: none; width: 100%; }
+  .inputs:focus { border-color: #3b82f6; }
+  .logs { flex: 1; min-height: 120px; max-height: 240px; overflow-y: auto; background: #0b1220; border: 1px solid #24324d; border-radius: 8px; padding: 8px 10px; font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.9; }
+  .logs .empty { color: #475569; }
+  .log-time { color: #64748b; margin-right: 4px; }
+  footer { margin-top: 20px; color: #64748b; font-size: 13px; line-height: 1.9; }
+  footer code { background: #1e293b; padding: 1px 6px; border-radius: 4px; color: #7dd3fc; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useContext, useReducer, useMemo, createContext } = React;
+
+function now() {
+  const d = new Date();
+  return d.toLocaleTimeString("zh-CN", { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0");
+}
+
+// 日志直接写 DOM(绕开 React 状态),保证时间顺序真实、不受渲染干扰
+function log(panelId, msg, color) {
+  const box = document.getElementById(panelId);
+  if (!box) return; // 首次渲染提交到 DOM 之前,日志容器还不存在
+  const empty = box.querySelector(".empty");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  const t = document.createElement("span");
+  t.className = "log-time";
+  t.textContent = "[" + now() + "] ";
+  const m = document.createElement("span");
+  m.textContent = msg;
+  m.style.color = color || "#cbd5e1";
+  row.appendChild(t);
+  row.appendChild(m);
+  box.prepend(row);
+  while (box.children.length > 100) box.removeChild(box.lastChild);
+}
+
+/* ─────────── 卡片 A:State Hook —— useState vs useReducer ─────────── */
+function countReducer(state, action) { // 「怎么改」集中在一个纯函数里
+  switch (action.type) {
+    case "add": return { count: state.count + 1 };
+    case "sub": return { count: state.count - 1 };
+    default:    return state;
+  }
+}
+
+function StateDemo({ logId }) {
+  const [count, setCount] = useState(0);
+  const [state, dispatch] = useReducer(countReducer, { count: 0 });
+  return (
+    <div className="row2">
+      <div className="panel open" style={{ flex: 1, minWidth: 140 }}>
+        <h3><span>useState(05 篇)</span></h3>
+        <div className="kv" style={{ margin: "8px 0" }}>count = <b>{count}</b></div>
+        <button className="mini" onClick={() => { setCount(count + 1); log(logId, "setCount(" + (count + 1) + "):直接提交一个新值", "#60a5fa"); }}>setCount(count + 1)</button>
+      </div>
+      <div className="panel open" style={{ flex: 1, minWidth: 140 }}>
+        <h3><span>useReducer</span></h3>
+        <div className="kv" style={{ margin: "8px 0" }}>state.count = <b>{state.count}</b></div>
+        <button className="mini" onClick={() => { dispatch({ type: "add" }); log(logId, "dispatch({type:'add'}):只发动作,怎么改由 reducer 纯函数决定", "#4ade80"); }}>dispatch(add)</button>{" "}
+        <button className="mini" onClick={() => { dispatch({ type: "sub" }); log(logId, "dispatch({type:'sub'})", "#94a3b8"); }}>dispatch(sub)</button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────── 卡片 B:Ref Hook —— useRef 跨渲染的盒子 ─────────── */
+function RefDemo({ logId }) {
+  const inputRef = useRef(null);   // 用途①:挂 DOM 引用
+  const hiddenRef = useRef(0);     // 用途②:存「不需要被看见」的值
+  const [shown, setShown] = useState(0); // 对照:state
+  return (
+    <div>
+      <input className="inputs" ref={inputRef} placeholder="我是输入框,点右边按钮命令式聚焦" />
+      <button className="mini" onClick={() => { inputRef.current.focus(); log(logId, "inputRef.current.focus():不经 state、不重渲染,直接操作 DOM", "#4ade80"); }}>inputRef.current.focus()</button>
+      <div className="kv">hiddenRef.current = <b>{hiddenRef.current}</b>(渲染时读取;改它不触发重渲染)</div>
+      <div className="kv">state shown = <b>{shown}</b>(改它会触发重渲染)</div>
+      <button className="big bad" onClick={() => {
+        hiddenRef.current += 1;
+        log(logId, "hiddenRef.current → " + hiddenRef.current + ",但 React 毫不知情,界面不更新(这正是 ref 的用途:存不需要被看见的值)", "#f87171");
+      }}>hiddenRef.current += 1(不触发重渲染)</button>
+      <button className="big info" onClick={() => {
+        setShown(shown + 1);
+        log(logId, "setShown 触发重渲染 → 组件函数重跑,重新读到 hiddenRef.current,积攒的值「现形」", "#60a5fa");
+      }}>setShown + 1(重渲染后 ref 的值现形)</button>
+    </div>
+  );
+}
+
+/* ─────────── 卡片 C:Effect Hook —— useEffect 依赖数组与清理 ─────────── */
+function EffectInner({ logId }) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    log(logId, "挂载:[] 的 effect 执行(整个生命周期只此一次)", "#4ade80");
+    return () => log(logId, "卸载:[] effect 的清理函数执行", "#fbbf24");
+  }, []);
+  useEffect(() => {
+    log(logId, "[count] effect 执行:count=" + count + (count === 0 ? "(首次挂载也会跑一次)" : "(依赖变了才跑)"), "#60a5fa");
+    return () => log(logId, "[count] 清理:上一次(count=" + count + ")的 effect 先被清理", "#94a3b8");
+  }, [count]);
+  return (
+    <button className="big" onClick={() => { log(logId, "点击 → setCount(" + (count + 1) + "),预约重渲染", "#e2e8f0"); setCount(count + 1); }}>
+      count + 1(当前 {count})
+    </button>
+  );
+}
+
+function EffectDemo({ logId }) {
+  const [key, setKey] = useState(0);
+  return (
+    <div>
+      <EffectInner key={key} logId={logId} />
+      <button className="remount" onClick={() => { setKey(key + 1); log(logId, "key 变了 → EffectInner 重新挂载:先卸载清理,再重新执行挂载 effect", "#fbbf24"); }}>🔄 重新挂载(key 强制)</button>
+    </div>
+  );
+}
+
+/* ─────────── 卡片 D:Context Hook —— useContext 跨层级空降数据 ─────────── */
+const ThemeContext = createContext("light"); // ① 顶层创建
+
+function ThemeChild() {                       // 孙子组件:直接读,中间层一个 props 都没传
+  const theme = useContext(ThemeContext);
+  return <div className="kv">孙子组件读到主题:<b>{theme}</b>(中间层没帮它传任何 props)</div>;
+}
+function ThemeMiddle() {
+  return <ThemeChild />;
+}
+
+function ContextDemo({ logId }) {
+  const [theme, setTheme] = useState("light");
+  return (
+    <ThemeContext.Provider value={theme}> {/* ② 祖先提供 */}
+      <div className="kv">父组件的 theme = <b>{theme}</b></div>
+      <button className="big info" onClick={() => {
+        const next = theme === "light" ? "dark" : "light";
+        setTheme(next);
+        log(logId, "setTheme('" + next + "') → Provider 的 value 变了 → 所有 useContext(ThemeContext) 的后代一起重渲染", "#60a5fa");
+      }}>切换主题(改 Provider 的 value)</button>
+      <ThemeMiddle />                       {/* ③ 任意后代直接读 */}
+    </ThemeContext.Provider>
+  );
+}
+
+/* ─────────── 卡片 E:性能 Hook —— useMemo 缓存计算结果 ─────────── */
+function heavySum(n) { // 故意放慢的「昂贵计算」:1+2+…+n
+  let s = 0;
+  for (let i = 1; i <= n; i++) s += i;
+  return s;
+}
+
+function MemoDemo({ logId }) {
+  const [n, setN] = useState(5000000);
+  const [tick, setTick] = useState(0); // 一个「无关」的 state,只为触发重渲染
+  const runs = useRef({ plain: 0, memo: 0 });
+
+  const t1 = performance.now();
+  const plain = heavySum(n);          // 每次渲染都重算
+  runs.current.plain += 1;
+  const plainMs = (performance.now() - t1).toFixed(2);
+
+  const t2 = performance.now();
+  const memoed = useMemo(() => {      // 只在 n 变化后的那次渲染真算
+    runs.current.memo += 1;
+    log(logId, "useMemo 真算了:heavySum(" + n + ") → 累计第 " + runs.current.memo + " 次", "#4ade80");
+    return heavySum(n);
+  }, [n]);
+  const memoMs = (performance.now() - t2).toFixed(2);
+
+  return (
+    <div>
+      <div className="kv">heavySum({n.toLocaleString()}) = <b>{plain.toLocaleString()}</b>(两种写法结果一致)</div>
+      <div className="kv">本次渲染耗时:普通 <b>{plainMs}ms</b>(每次都算) | useMemo <b>{memoMs}ms</b>(命中缓存时 ≈ 0)</div>
+      <div className="kv">累计真算次数:普通 <b>{runs.current.plain}</b> 次 | useMemo <b>{runs.current.memo}</b> 次</div>
+      <button className="big bad" onClick={() => {
+        setTick(tick + 1);
+        log(logId, "setTick(" + (tick + 1) + "):无关 state 触发重渲染 → 普通计算被迫重算(累计 +1),useMemo 直接吃缓存(看上面累计数)", "#f87171");
+      }}>无关 state + 1(触发重渲染)</button>
+      <button className="big ok" onClick={() => {
+        setN(n * 2);
+        log(logId, "setN(" + (n * 2) + "):依赖 n 变了 → useMemo 这一次才会重算", "#4ade80");
+      }}>n 翻倍(useMemo 依赖变化)</button>
+    </div>
+  );
+}
+
+/* ─────────── 通用卡片外壳 ─────────── */
+function Card(props) {
+  return (
+    <section className="card">
+      <h2>
+        <span className={"tag " + props.tagClass}>{props.tag}</span>
+        <code>{props.title}</code>
+      </h2>
+      <pre>{props.code}</pre>
+      <div className={"note " + props.noteClass}>{props.note}</div>
+      <div className="live">{props.children}</div>
+      <div className="logs" id={props.logId}>
+        <div className="empty">暂无日志…</div>
+      </div>
+    </section>
+  );
+}
+
+function App() {
+  return (
+    <div className="wrap">
+      <h1>🔍 验证:常用 Hook —— State / Ref / Effect / Context / 性能</h1>
+      <p className="intro">
+        本页验证 React 官方参考(<a href="https://zh-hans.react.dev/reference/react" target="_blank" rel="noreferrer">zh-hans.react.dev/reference/react</a>)中的常用 Hook,
+        分类与官方一致:State、Ref、Effect、Context、性能;配套笔记 <code>notes/06-Hook-是什么.md</code>。
+        <br />
+        五张卡片分别回答:① useState 和 useReducer 什么关系;② useRef 改了为什么界面不动;③ useEffect 什么时候跑、清理函数何时执行;④ useContext 怎么跳过中间层;⑤ useMemo 到底省了什么。
+      </p>
+
+      <div className="cards">
+        <Card
+          tag="🎛️ State Hook" tagClass="info"
+          title="useState vs useReducer"
+          code={"const [state, dispatch] = useReducer(\n  countReducer, { count: 0 }\n);\n\nfunction countReducer(state, action) {\n  switch (action.type) {\n    case 'add': return { count: state.count + 1 };\n    default:    return state;\n  }\n}\n\n<button onClick={() => dispatch({ type: 'add' })}>"}
+          note="useState 已在 05 篇细学。更新逻辑复杂、操作种类多时,useReducer 把「怎么改」集中到一个纯函数,组件只负责「发动作」——与 05 篇的 setCount(c => c + 1) 一脉相承。"
+          noteClass="info" logId="logs-a"
+        >
+          <StateDemo logId="logs-a" />
+        </Card>
+
+        <Card
+          tag="📦 Ref Hook" tagClass="ok"
+          title="useRef:跨渲染的盒子"
+          code={"const inputRef = useRef(null);\n<input ref={inputRef} />\ninputRef.current.focus();\n\nconst hiddenRef = useRef(0);\nhiddenRef.current += 1; // 改它不触发重渲染!"}
+          note="界面要显示的用 state,界面不显示但要记住的用 ref。点「+1」数字疯涨但界面不动,点 setShown 重渲染后才现形——改 ref.current 不触发重渲染,值却一直都在。"
+          noteClass="ok" logId="logs-b"
+        >
+          <RefDemo logId="logs-b" />
+        </Card>
+
+        <Card
+          tag="⏱️ Effect Hook" tagClass="info"
+          title="useEffect:依赖数组与清理"
+          code={"useEffect(() => {\n  document.title = `点了 ${count} 次`;\n  return () => { /* 清理 */ };\n}, [count]);\n\n// 不写依赖 = 每次渲染后都跑\n// []    = 只在挂载后跑一次\n// [count] = count 变了才跑"}
+          note="渲染提交到屏幕之后执行,与组件外的系统同步。点按钮看日志:清理函数先于新 effect 执行;🔄 重新挂载可见完整的「卸载清理 → 重新挂载」。"
+          noteClass="info" logId="logs-c"
+        >
+          <EffectDemo logId="logs-c" />
+        </Card>
+
+        <Card
+          tag="🌳 Context Hook" tagClass="ok"
+          title="useContext:跨层级空降数据"
+          code={"const ThemeContext = createContext('light');\n\n<ThemeContext.Provider value={theme}>\n  <Middle />   {/* 中间层不用传 */}\n</ThemeContext.Provider>\n\n// 任意后代:\nconst theme = useContext(ThemeContext);"}
+          note="解决 props 逐层透传(prop drilling):中间组件一行 props 都没写,孙子组件直接读到主题。07 篇的层层传 props 太深时,context 是官方第二条路。"
+          noteClass="ok" logId="logs-d"
+        >
+          <ContextDemo logId="logs-d" />
+        </Card>
+
+        <Card
+          tag="⚡ 性能 Hook" tagClass="info"
+          title="useMemo:缓存计算结果"
+          code={"const total = useMemo(\n  () => heavySum(n),\n  [n]   // 依赖不变 → 直接用上次结果\n);\n\n// useCallback 缓存的是「函数本身」:\nconst onSave = useCallback(\n  () => save(id), [id]\n);"}
+          note="无关 state 触发重渲染时,普通计算每次被迫重算(累计次数上涨),useMemo 无动于衷;依赖 n 变了才真算——「跳过不必要的计算」的直接证据。"
+          noteClass="info" logId="logs-e"
+        >
+          <MemoDemo logId="logs-e" />
+        </Card>
+      </div>
+
+      <footer>
+        本页面用 React 18 + Babel Standalone 在浏览器里现场编译 JSX,无需构建工具,联网状态下直接双击打开即可。
+        <br />
+        结论:① <code>useReducer</code> 是 useState 的「集中管理版」:更新逻辑收进纯函数,组件发动作;
+        ② <code>useRef</code> 是不触发重渲染的盒子:聚焦 DOM、藏定时器 id 都靠它;
+        ③ <code>useEffect</code> 靠依赖数组决定何时跑,清理函数先于下一次执行;
+        ④ <code>useContext</code> 让数据空降,跳过中间层级;
+        ⑤ <code>useMemo</code>/<code>useCallback</code> 用依赖数组换「跳过重算 / 重渲染」。
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
