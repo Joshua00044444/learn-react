@@ -3,6 +3,8 @@
 React 学习项目。目前包含一组入门核心概念的笔记和一个可交互的验证页面。
 笔记中的 React 技术知识,来自 D 盘的 **DeepSeekMonitorWindows-1** 项目。
 
+**官方教程(对照学习):** <https://zh-hans.react.dev/learn> —— React 中文文档「快速入门」,`react-val-study/` 里的验证页面即针对该文档的「更新界面」等小节编写。
+
 ## 目录结构
 
 ```
@@ -16,7 +18,8 @@ learn-react/
     ├── 02-JSX-与-JS-的区别.md
     ├── 03-React-的本质.md
     ├── 04-onClick-传函数-还是-传执行结果.md
-    └── 05-useState-状态与更新界面.md
+    ├── 05-useState-状态与更新界面.md
+    └── 06-Hook-是什么.md
 ```
 
 ## 学习路径
@@ -28,6 +31,7 @@ learn-react/
 3. **[React 的本质](notes/03-React-的本质.md)** — React 100% 是 JS,它约定的是"如何用 JS 构建 UI"的规则(声明式、单向数据流、状态驱动)。
 4. **[onClick:传函数还是传执行结果](notes/04-onClick-传函数-还是-传执行结果.md)** — `{handleClick}` vs `{handleClick()}`,含实测数据。
 5. **[useState:状态与更新界面](notes/05-useState-状态与更新界面.md)** — state 快照、批处理、函数式更新,含实测数据。
+6. **[Hook 是什么](notes/06-Hook-是什么.md)** — 以 `use` 开头的特殊函数,函数组件挂接 React 特性的入口;两条调用铁律与自定义 Hook。
 
 ## 验证页面使用方法
 
