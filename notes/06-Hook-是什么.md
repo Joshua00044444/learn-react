@@ -196,7 +196,9 @@ export default function TitleCounter() {
 
 ### 性能 Hook:useMemo / useCallback
 
-缓存,跳过不必要的重算与重渲染:
+缓存,跳过不必要的重算与重渲染。
+
+**useMemo:缓存「计算结果」**
 
 ```jsx
 import { useMemo, useState } from 'react';
@@ -220,13 +222,67 @@ export default function Calc() {
 }
 ```
 
-`useCallback`(节选:写在父组件里,`id` 来自父组件的 state;常用于把回调传给子组件时,避免子组件无谓重渲染):
+`useMemo(工厂函数, 依赖数组)` 的含义:**「给我 `heavySum(n)` 的结果;如果 `n` 和上次一样,就别真算,直接把上次的缓存给我。」**返回值就是工厂函数的返回值;依赖数组用严格相等(`Object.is`)比较「这次的 n」和「上次算时的 n」。
+
+执行流程(按时机):
+
+- **第一次渲染**:`useState(100)` → n=100;useMemo 首次没有缓存 → **真的执行** `heavySum(100)` → total=5050 → 渲染界面。
+- **点按钮 n + 1**:`setN(101)` → 组件函数**从头重新执行** → 走到 useMemo 比较依赖:101 ≠ 100 → **真的执行** `heavySum(101)` → total=5151 → 界面更新。
+- **关键场景:与 n 无关的重渲染**:假设组件里还有个输入框,打字触发重渲染、组件函数又从头执行;走到 useMemo 时 n 还是 100 → **和上次一样 → 工厂函数根本不执行,直接吐缓存(5050)**。
+
+对比 ❌ `const total = heavySum(n);`——这样写每次渲染都真算,渲染 100 次就算 100 次。react-hooks-demo 卡片 E 用计数实证过:无关 state 触发重渲染时,「普通计算累计次数」一路上涨,「useMemo 真算次数」纹丝不动。
+
+> 逻辑链:**渲染 → useMemo 查依赖 n 变没变 → 没变:吐缓存(工厂函数跳过);变了:真算一遍并更新缓存 → 界面拿到 total 渲染。**
+
+**顺带拆解点按钮那行:`setN(n + 1)` 在干嘛**
+
+- `setN` 是 `useState(100)` 解构出的**更新函数**:调用它 = **预约一次重渲染**,真正的赋值发生在下一次渲染时(`useState` 返回交上去的新值)。
+- `n + 1` 用**本次渲染快照里的 n** 算出新值——点击那一刻先算好 101,再交给 setN。
+- 外层的 `() => ...` 是 04 篇的规矩:`onClick` 必须传**函数**(登记,点击才执行);写成 `onClick={setN(n + 1)}` 会变成渲染时当场调用,不但无效还在渲染期间乱改状态。
+- 在这个例子里,`setN(n + 1)` 的使命就是**让 n 变化、「戳」一下 useMemo 的依赖数组**,逼它重算——对照按钮是 react-hooks-demo 卡片 E 的「无关 state + 1」:它戳不动依赖,useMemo 就吃缓存。
+- 快照语义(05 篇):同一事件里连写两次 `setN(n + 1)` 只 +1(两次都基于同一个旧快照);要连加用函数式 `setN(n => n + 1)`。
+
+> 这行的逻辑链:**点击 → 箭头函数执行 → 算出新值 101 → setN(101) 预约重渲染 → 组件函数从头执行 → useState 返回 101 → useMemo 发现依赖变了 → 重算 → 界面更新。**
+
+**useCallback:缓存「函数本身」**(要配合 `memo` 才看得出效果,写全如下):
 
 ```jsx
-const onSave = useCallback(() => save(id), [id]);  // id 不变 → 返回同一个函数
+import { memo, useCallback, useState } from 'react';
+
+const SaveButton = memo(function SaveButton({ onSave }) {
+  console.log('SaveButton 渲染了');               // 用控制台观察:它何时重渲染
+  return <button onClick={onSave}>保存</button>;
+});
+
+export default function Editor() {
+  const [id, setId] = useState(1);
+  const [draft, setDraft] = useState('');
+
+  // useCallback:id 不变 → 每次渲染都返回「同一个函数」
+  const handleSave = useCallback(() => {
+    alert('保存 id=' + id);
+  }, [id]);
+
+  return (
+    <>
+      {/* draft 变了 → Editor 重渲染;但 handleSave 还是同一个函数
+          → memo 包裹的 SaveButton 发现 props 没变 → 跳过重渲染(控制台不打印) */}
+      <input value={draft} onChange={e => setDraft(e.target.value)} />
+      <SaveButton onSave={handleSave} />
+      {/* 点这个 → id 变 → handleSave 是新函数 → SaveButton 才会重渲染 */}
+      <button onClick={() => setId(id + 1)}>id + 1</button>
+    </>
+  );
+}
 ```
 
-`useMemo` 缓存「计算结果」;`useCallback` 缓存「函数本身」(相当于 `useMemo(() => fn, deps)`)。另两个性能 Hook:`useTransition` 把更新标记为「可打断、不阻塞输入」,`useDeferredValue` 让某个值的更新「慢半拍」——入门先混个脸熟。
+逻辑链:**打字 → Editor 重渲染 → useCallback 比较 id:没变 → 返回同一个函数 → memo 包裹的 SaveButton 发现 props 没变 → 跳过重渲染(控制台不打印)**。若去掉 useCallback,`handleSave` 每次渲染都是全新函数,`memo` 立刻失效——打一个字,子按钮就白白重渲染一次。
+
+**使用须知**:
+
+- 依赖数组写了什么就只盯什么;工厂函数里用到的值必须**写全**进依赖,否则它变了也不会重算。
+- 缓存不是免费的(要记依赖、存缓存),**只包真的贵的计算**、或需要「引用不变」的对象/数组/函数,别什么都包。
+- 俩是孪生兄弟:`useMemo` 缓存「值」,`useCallback` 缓存「函数」(等价于 `useMemo(() => fn, deps)`)。另两个性能 Hook:`useTransition` 把更新标记为「可打断、不阻塞输入」,`useDeferredValue` 让某个值的更新「慢半拍」——入门先混个脸熟。
 
 ### 其他 Hook(先认识)
 
