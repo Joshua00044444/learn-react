@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>React 验证:内置组件(Fragment / Profiler / StrictMode / Suspense)</title>
+<!-- ⚠️ 本页特意用 development 构建:StrictMode 的双跑、Profiler 的 onRender 只在开发构建里生效 -->
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.development.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.development.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0b1220; color: #e2e8f0; font-family: system-ui, "Microsoft YaHei", sans-serif; padding: 24px; }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 8px; }
+  .intro { color: #94a3b8; font-size: 14px; line-height: 1.8; margin-bottom: 20px; }
+  .intro a { color: #7dd3fc; }
+  code, pre { font-family: Consolas, "JetBrains Mono", monospace; }
+  .intro code { background: #1e293b; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .card { background: #111a2e; border: 1px solid #24324d; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .card h2 { font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card h2 code { color: #7dd3fc; font-size: 14px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .tag.ok { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.4); }
+  .tag.bad { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.4); }
+  .tag.info { background: rgba(96,165,250,.15); color: #60a5fa; border: 1px solid rgba(96,165,250,.4); }
+  pre { background: #0b1220; border: 1px solid #24324d; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #7dd3fc; overflow-x: auto; line-height: 1.6; white-space: pre-wrap; }
+  .note { font-size: 12.5px; line-height: 1.7; padding: 8px 10px; border-radius: 8px; }
+  .note.ok { background: rgba(34,197,94,.08); color: #86efac; }
+  .note.info { background: rgba(96,165,250,.08); color: #93c5fd; }
+  .note.bad { background: rgba(239,68,68,.08); color: #fca5a5; }
+  .live { display: flex; flex-direction: column; gap: 10px; }
+  .live .row2 { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .big { padding: 12px 16px; font-size: 15px; border-radius: 8px; border: 1px solid #3b82f6; background: #1d4ed8; color: #fff; cursor: pointer; }
+  .big:hover { background: #2563eb; }
+  .big.bad { border-color: #ef4444; background: #7f1d1d; }
+  .big.bad:hover { background: #991b1b; }
+  .remount { padding: 8px 12px; font-size: 13px; border-radius: 8px; border: 1px dashed #475569; background: transparent; color: #cbd5e1; cursor: pointer; }
+  .remount:hover { border-color: #94a3b8; }
+  .kv { font-size: 13.5px; color: #cbd5e1; }
+  .kv b { color: #fbbf24; }
+  .rowlabel { font-size: 12.5px; color: #94a3b8; margin-bottom: 6px; }
+  .flexline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border: 1px dashed #334155; border-radius: 8px; padding: 8px; }
+  .flexline.inner { border-color: rgba(239,68,68,.6); background: rgba(239,68,68,.06); }
+  .mini { padding: 6px 14px; font-size: 12.5px; border-radius: 6px; border: 1px solid #3b82f6; background: transparent; color: #93c5fd; cursor: pointer; white-space: nowrap; }
+  .mini:hover { background: rgba(59,130,246,.15); }
+  .fallback { padding: 14px; text-align: center; border: 1px dashed #3b82f6; border-radius: 8px; color: #93c5fd; font-size: 14px; animation: pulse 1s ease-in-out infinite; }
+  .gift { padding: 14px; text-align: center; border: 1px solid #22c55e; border-radius: 8px; color: #86efac; background: rgba(34,197,94,.08); font-size: 14px; line-height: 1.7; }
+  @keyframes pulse { 50% { opacity: .45; } }
+  .logs { flex: 1; min-height: 120px; max-height: 240px; overflow-y: auto; background: #0b1220; border: 1px solid #24324d; border-radius: 8px; padding: 8px 10px; font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.9; }
+  .logs .empty { color: #475569; }
+  .log-time { color: #64748b; margin-right: 4px; }
+  footer { margin-top: 20px; color: #64748b; font-size: 13px; line-height: 1.9; }
+  footer code { background: #1e293b; padding: 1px 6px; border-radius: 4px; color: #7dd3fc; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, Fragment, Profiler, StrictMode, Suspense, lazy } = React;
+
+function now() {
+  const d = new Date();
+  return d.toLocaleTimeString("zh-CN", { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0");
+}
+
+// 日志直接写 DOM(绕开 React 状态),保证时间顺序真实、不受渲染干扰
+function log(panelId, msg, color) {
+  const box = document.getElementById(panelId);
+  if (!box) return; // 首次渲染提交到 DOM 之前,日志容器还不存在
+  const empty = box.querySelector(".empty");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  const t = document.createElement("span");
+  t.className = "log-time";
+  t.textContent = "[" + now() + "] ";
+  const m = document.createElement("span");
+  m.textContent = msg;
+  m.style.color = color || "#cbd5e1";
+  row.appendChild(t);
+  row.appendChild(m);
+  box.prepend(row);
+  while (box.children.length > 100) box.removeChild(box.lastChild);
+}
+
+function fib(n) {
+  return n < 2 ? n : fib(n - 1) + fib(n - 2);
+}
+
+/* ─────────── 卡片 A:Fragment —— 分组不留 DOM 节点 ─────────── */
+function FragmentDemo({ logId }) {
+  const fragRowRef = useRef(null);
+  const divRowRef = useRef(null);
+
+  function inspect() {
+    const f = fragRowRef.current;
+    const d = divRowRef.current;
+    log(logId, "Fragment 行:外层容器子元素 " + f.children.length + " 个,第一个是 <" + f.firstElementChild.tagName.toLowerCase() + "> —— 3 个 button 直接躺在容器里,没有多余包装", "#4ade80");
+    log(logId, "div 行:外层容器子元素 " + d.children.length + " 个,第一个是 <" + d.firstElementChild.tagName.toLowerCase() + "> —— 多包了一层 div,DOM 里多出一个节点(红色虚线框)", "#f87171");
+    log(logId, "对应 03 篇的翻译规则:<>…</> 编译成 jsx(Fragment, …),不创建节点;<div>…</div> 编译成 jsx('div', …),创建真实节点", "#94a3b8");
+  }
+
+  const fruits = ["🍎", "🍌", "🍇"];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div>
+        <div className="rowlabel">用 {"<>…</>"} 分组(JSX 层有父级,DOM 层零痕迹)</div>
+        <div className="flexline" ref={fragRowRef}>
+          <>
+            {fruits.map((f) => (
+              <button className="mini" key={f}>{f} 水果</button>
+            ))}
+          </>
+        </div>
+      </div>
+      <div>
+        <div className="rowlabel">用 &lt;div&gt; 分组(真实创建一个包装节点)</div>
+        <div className="flexline" ref={divRowRef}>
+          <div className="flexline inner">
+            {fruits.map((f) => (
+              <button className="mini" key={f}>{f} 水果</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <button className="big" onClick={inspect}>🔍 数一数真实 DOM 节点</button>
+    </div>
+  );
+}
+
+/* ─────────── 卡片 B:Profiler —— 给子树计时 ─────────── */
+function HeavyCounter({ heavy }) {
+  const [count, setCount] = useState(0);
+  // 每次渲染都重算一遍 fib,模拟「昂贵渲染」(仅演示,别学它)
+  const dust = heavy ? fib(31) : 0;
+
+  return (
+    <div className="row2">
+      <button className="big" onClick={() => setCount(count + 1)}>count + 1(当前 {count})</button>
+      <span className="kv">昂贵计算:{heavy ? <b>开(fib(31)={dust})</b> : "关"}</span>
+    </div>
+  );
+}
+
+function ProfilerDemo({ logId }) {
+  const [mounted, setMounted] = useState(false);
+  const [heavy, setHeavy] = useState(false);
+
+  // 每当 <Profiler> 包住的子树完成一次提交,React 就调用一次这个函数
+  function handleRender(id, phase, actualDuration, baseDuration) {
+    log(logId,
+      "onRender(id=\"" + id + "\", phase=" + phase + "):实际耗时 " + actualDuration.toFixed(2) + "ms,基线 " + baseDuration.toFixed(2) + "ms",
+      phase === "mount" ? "#4ade80" : "#60a5fa");
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {!mounted ? (
+        <button className="big" onClick={() => {
+          setMounted(true);
+          log(logId, "挂载 Profiler 包住的计数器 → 马上会有一条 phase=mount 的 onRender", "#fbbf24");
+        }}>▶️ 挂载计数器(开始测量)</button>
+      ) : (
+        <Profiler id="计数器" onRender={handleRender}>
+          <HeavyCounter heavy={heavy} />
+          <button className="remount" onClick={() => setHeavy(!heavy)}>
+            {heavy ? "关闭" : "开启"}昂贵计算(fib 31)
+          </button>
+        </Profiler>
+      )}
+    </div>
+  );
+}
+
+/* ─────────── 卡片 C:StrictMode —— 开发期双跑找茬 ─────────── */
+function Probe({ counter, epoch, logId }) {
+  counter.current += 1; // 在渲染函数里改外部变量——不纯,StrictMode 专门抓这种
+  log(logId, "① Probe 组件函数执行(实例 " + epoch + ",本次挂载的第 " + counter.current + " 次渲染)");
+
+  const [count, setCount] = useState(() => {
+    log(logId, "② useState 初始化函数执行(实例 " + epoch + ")", "#c4b5fd");
+    return 0;
+  });
+
+  useEffect(() => {
+    log(logId, "③ Effect 挂载(实例 " + epoch + ",模拟订阅)", "#60a5fa");
+    return () => {
+      log(logId, "④ Effect 清理(实例 " + epoch + ",模拟退订)", "#f87171");
+    };
+  }, []);
+
+  return <button className="big" onClick={() => setCount(count + 1)}>内部 count + 1(当前 {count})</button>;
+}
+
+function StrictDemo({ logId }) {
+  const [strict, setStrict] = useState(true);
+  const [epoch, setEpoch] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  const counter = useRef(0);
+
+  function start(nextStrict) {
+    counter.current = 0; // 重新计数,本轮从 1 开始
+    setStrict(nextStrict);
+    setMounted(true);
+    setEpoch(epoch + 1); // key 变化强制重挂 Probe
+    log(logId,
+      (nextStrict ? "🚨 以 <StrictMode> 包裹挂载 Probe" : "😐 普通模式挂载 Probe") + " —— 对比日志:双份 = StrictMode 在双调用",
+      nextStrict ? "#fbbf24" : "#94a3b8");
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="row2">
+        <button className="big" onClick={() => start(true)}>🚨 StrictMode 挂载</button>
+        <button className="big bad" onClick={() => start(false)}>😐 普通模式挂载</button>
+      </div>
+      {mounted && (
+        strict
+          ? <StrictMode><Probe key={epoch} epoch={epoch} counter={counter} logId={logId} /></StrictMode>
+          : <Probe key={epoch} epoch={epoch} counter={counter} logId={logId} />
+      )}
+    </div>
+  );
+}
+
+/* ─────────── 卡片 D:Suspense —— 子树没就绪时 fallback 顶班 ─────────── */
+function Gift({ round, logId }) {
+  useEffect(() => {
+    log(logId, "✅ 第 " + round + " 轮:真组件挂载,fallback 被「整体替换」(不是叠加)", "#4ade80");
+  }, []);
+
+  return (
+    <div className="gift">
+      🎁 第 {round} 轮加载成功的组件<br />
+      内容来自一个 2 秒后才 resolve 的 Promise(React.lazy 接受任何 thenable,不必真是 import())
+    </div>
+  );
+}
+
+function SuspenseDemo({ logId }) {
+  const [target, setTarget] = useState(null); // 当前的 lazy 组件
+  const [round, setRound] = useState(0);
+
+  function load() {
+    const r = round + 1;
+    setRound(r);
+    // 每轮新建一个 lazy:内部 Promise 2 秒后才 resolve,这样才能反复看到 fallback
+    const Comp = lazy(() => new Promise((resolve) => {
+      setTimeout(() => {
+        log(logId, "⏰ 第 " + r + " 轮:Promise resolve → React 重试渲染子树", "#93c5fd");
+        resolve({ default: Gift });
+      }, 2000);
+    }));
+    setTarget(Comp);
+    log(logId, "▶️ 第 " + r + " 轮:点击 → 新建 lazy 组件(2 秒后才 resolve)→ 子树挂起,最近的 Suspense 显示 fallback", "#fbbf24");
+  }
+
+  function reset() {
+    setTarget(null);
+    log(logId, "重置:卸载 Suspense 区域,可重新体验", "#94a3b8");
+  }
+
+  const Target = target; // JSX 要求组件引用大写开头,lowercase 会被当成 DOM 标签
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="row2">
+        <button className="big" onClick={load}>▶️ 加载组件(等 2 秒)</button>
+        {target && <button className="remount" onClick={reset}>🔄 重置</button>}
+      </div>
+      {target && (
+        <Suspense fallback={<div className="fallback">⏳ 加载中……(fallback 正在替班)</div>}>
+          <Target key={round} round={round} logId={logId} />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
+/* ─────────── 通用卡片外壳 ─────────── */
+function Card(props) {
+  return (
+    <section className="card">
+      <h2>
+        <span className={"tag " + props.tagClass}>{props.tag}</span>
+        <code>{props.title}</code>
+      </h2>
+      <pre>{props.code}</pre>
+      <div className={"note " + props.noteClass}>{props.note}</div>
+      <div className="live">{props.children}</div>
+      <div className="logs" id={props.logId}>
+        <div className="empty">暂无日志…</div>
+      </div>
+    </section>
+  );
+}
+
+function App() {
+  return (
+    <div className="wrap">
+      <h1>🔍 验证:内置组件 —— Fragment / Profiler / StrictMode / Suspense</h1>
+      <p className="intro">
+        本页验证 React 官方参考(<a href="https://zh-hans.react.dev/reference/react/components" target="_blank" rel="noreferrer">zh-hans.react.dev/reference/react/components</a>)的「内置组件」一节,对应笔记 <code>notes/08-内置组件.md</code>。
+        <br />
+        JSX 标签分三类:小写 = DOM 元素(<code>&lt;div&gt;</code>)、大写 = 组件(自定义 <code>&lt;MyButton/&gt;</code> 或 React 内置)。四个内置组件各验一件事:① Fragment 分组不留 DOM 节点;② Profiler 给子树计时;③ StrictMode 开发期双跑找茬;④ Suspense 在子树挂起时用 fallback 顶班。
+        <br />
+        ⚠️ 本页特意用 <b>development 构建</b>的 React(之前几页是 production):StrictMode 的双跑、Profiler 的 onRender <b>只在开发构建里生效</b>——拿 production 构建测它俩全是哑的,这本身就是知识点。
+      </p>
+
+      <div className="cards">
+        <Card
+          tag="🧩 Fragment" tagClass="ok"
+          title="<>…</>:分组不留 DOM 节点"
+          code={"// 短语法:最常用,但不能带任何 props(包括 key)\n<>\n  <button>🍎</button>\n  <button>🍌</button>\n</>\n\n// 完整写法:列表里要带 key 时必须用它\n{items.map((it) => (\n  <Fragment key={it.id}>\n    <td>{it.name}</td>\n    <td>{it.score}</td>\n  </Fragment>\n))}\n// <tr> 里只认 td/th,用 <div> 分组会破坏表格结构"}
+          note="两行按钮对照:Fragment 行的 3 个 button 直接躺在虚线容器里;div 行多包了一层红色虚线框。点按钮读真实 DOM 核对子元素个数。"
+          noteClass="ok" logId="logs-a"
+        >
+          <FragmentDemo logId="logs-a" />
+        </Card>
+
+        <Card
+          tag="⏱️ Profiler" tagClass="info"
+          title="给子树计时:onRender 回调"
+          code={'<Profiler id="计数器" onRender={handleRender}>\n  <HeavyCounter heavy={heavy} />\n</Profiler>\n\nfunction handleRender(id, phase,\n    actualDuration, baseDuration) {\n  // phase: \'mount\' 首次 | \'update\' 更新\n  // actualDuration: 这棵子树本次渲染实际耗时(ms)\n  // ⚠️ 生产构建里 onRender 不会触发'}
+          note="挂载计数器后每次点 +1 都会打一条 onRender;开关「昂贵计算」(每次渲染算 fib(31))前后对比 update 的实际耗时,瓶颈立现。"
+          noteClass="info" logId="logs-b"
+        >
+          <ProfilerDemo logId="logs-b" />
+        </Card>
+
+        <Card
+          tag="🚨 StrictMode" tagClass="bad"
+          title="开发期双跑:让不纯代码现原形"
+          code={"<StrictMode>\n  <Probe />   {/* 不渲染任何 DOM,只影响开发构建 */}\n</StrictMode>\n\n// 开发构建里,StrictMode 会让:\n// · 组件函数每次渲染被调用两遍\n// · useState 初始化函数跑两遍\n// · Effect 挂载 → 清理 → 再挂载\n// 用来暴露不纯代码 / 漏写的清理函数"}
+          note="同一个 Probe 分别在两种模式下挂载(日志带实例编号):StrictMode 侧渲染、初始化日志全部双份,Effect 演习「挂载→清理→再挂载」;普通模式侧渲染、初始化单份,Effect 只挂载一次(那条「清理」来自上一个实例卸载——换模式必然重挂)。点内部 +1 可看到更新时 StrictMode 也渲染两遍。"
+          noteClass="bad" logId="logs-c"
+        >
+          <StrictDemo logId="logs-c" />
+        </Card>
+
+        <Card
+          tag="💤 Suspense" tagClass="info"
+          title="子树挂起时,fallback 顶班"
+          code={"<Suspense fallback={<Loading />}>\n  <LazyThing />      {/* 尚未就绪的组件 */}\n</Suspense>\n\nconst LazyThing = lazy(() =>\n  new Promise((resolve) =>            // 本页用 setTimeout 模拟加载\n    setTimeout(\n      () => resolve({ default: 真组件 }),\n      2000\n    )\n  )\n);"}
+          note="点击后新建一个 2 秒后才 resolve 的 lazy 组件:子树挂起 → fallback 顶班 → resolve 后真组件整体替换 fallback。每轮都是新的 lazy,可反复体验。「挂起」只来自声明过会挂起的东西(lazy、use 等),普通慢代码不会触发。"
+          noteClass="info" logId="logs-d"
+        >
+          <SuspenseDemo logId="logs-d" />
+        </Card>
+      </div>
+
+      <footer>
+        本页面用 React 18(development 构建)+ Babel Standalone 在浏览器里现场编译 JSX,无需构建工具,联网状态下直接双击打开即可。
+        <br />
+        结论:① JSX 标签三类:小写 = DOM 元素、大写 = 组件;四个内置组件(<code>&lt;Fragment&gt;</code>、<code>&lt;Profiler&gt;</code>、<code>&lt;StrictMode&gt;</code>、<code>&lt;Suspense&gt;</code>)大写但不用 import,在 React 命名空间里;
+        <br />
+        ② <code>&lt;&gt;…&lt;/&gt;</code> 是 <code>&lt;Fragment&gt;</code> 的语法糖,分组不留 DOM;列表要带 key 时必须写完整 <code>&lt;Fragment key=…&gt;</code>;
+        ③ Profiler 只计时(onRender 回调,生产构建不触发);StrictMode 只找茬(开发构建双跑,生产零行为);
+        ④ Suspense 接住「挂起」:子树没就绪先显示 fallback,就绪后整体替换;懒加载用 <code>lazy</code> 配它。
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
