@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>React 验证:内置 API(createContext / lazy / memo / startTransition / use / act / captureOwnerStack)</title>
+<!-- ⚠️ 用 development 构建(?dev):act、captureOwnerStack 的完整行为只在开发构建里可见。
+     React 19 起官方不再提供 UMD 文件,沿用 08 篇的做法:esm.sh 的 ESM 版 + import map(需要联网;
+     若双击打开被 CORS 拦,用本地静态服务打开本目录) -->
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.2.0?dev",
+    "react-dom/client": "https://esm.sh/react-dom@19.2.0/client?dev&external=react"
+  }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0b1220; color: #e2e8f0; font-family: system-ui, "Microsoft YaHei", sans-serif; padding: 24px; }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 8px; }
+  .intro { color: #94a3b8; font-size: 14px; line-height: 1.8; margin-bottom: 20px; }
+  .intro a { color: #7dd3fc; }
+  code, pre { font-family: Consolas, "JetBrains Mono", monospace; }
+  .intro code { background: #1e293b; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .card { background: #111a2e; border: 1px solid #24324d; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .card h2 { font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card h2 code { color: #7dd3fc; font-size: 14px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .tag.ok { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.4); }
+  .tag.bad { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.4); }
+  .tag.info { background: rgba(96,165,250,.15); color: #60a5fa; border: 1px solid rgba(96,165,250,.4); }
+  pre { background: #0b1220; border: 1px solid #24324d; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #7dd3fc; overflow-x: auto; line-height: 1.6; white-space: pre-wrap; }
+  pre.plain { color: #cbd5e1; max-height: 260px; overflow: auto; }
+  .note { font-size: 12.5px; line-height: 1.7; padding: 8px 10px; border-radius: 8px; }
+  .note.ok { background: rgba(34,197,94,.08); color: #86efac; }
+  .note.info { background: rgba(96,165,250,.08); color: #93c5fd; }
+  .note.bad { background: rgba(239,68,68,.08); color: #fca5a5; }
+  .live { display: flex; flex-direction: column; gap: 10px; }
+  .live .row2 { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .big { padding: 12px 16px; font-size: 15px; border-radius: 8px; border: 1px solid #3b82f6; background: #1d4ed8; color: #fff; cursor: pointer; }
+  .big:hover { background: #2563eb; }
+  .big.bad { border-color: #ef4444; background: #7f1d1d; }
+  .big.bad:hover { background: #991b1b; }
+  .remount { padding: 8px 12px; font-size: 13px; border-radius: 8px; border: 1px dashed #475569; background: transparent; color: #cbd5e1; cursor: pointer; }
+  .remount:hover { border-color: #94a3b8; }
+  .kv { font-size: 13.5px; color: #cbd5e1; }
+  .kv b { color: #fbbf24; }
+  .rowlabel { font-size: 12.5px; color: #94a3b8; margin-bottom: 6px; }
+  .flexline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border: 1px dashed #334155; border-radius: 8px; padding: 8px; }
+  .mini { padding: 6px 14px; font-size: 12.5px; border-radius: 6px; border: 1px solid #3b82f6; background: transparent; color: #93c5fd; cursor: pointer; white-space: nowrap; }
+  .mini:hover { background: rgba(59,130,246,.15); }
+  .mini.dark { border-color: #a855f7; color: #d8b4fe; background: rgba(168,85,247,.12); }
+  .mini.light { border-color: #f59e0b; color: #fcd34d; background: rgba(245,158,11,.10); }
+  .fallback { padding: 14px; text-align: center; border: 1px dashed #3b82f6; border-radius: 8px; color: #93c5fd; font-size: 14px; animation: pulse 1s ease-in-out infinite; }
+  .panel-box { display: flex; flex-direction: column; gap: 8px; border: 1px solid #24324d; border-radius: 8px; padding: 10px 12px; background: #0b1220; flex: 1; min-width: 220px; }
+  .panel-box input { padding: 8px 10px; border-radius: 6px; border: 1px solid #334155; background: #111a2e; color: #e2e8f0; font-size: 13px; outline: none; }
+  .panel-box input:focus { border-color: #3b82f6; }
+  .panel-box.red { border-color: rgba(239,68,68,.5); }
+  .panel-box.blue { border-color: rgba(59,130,246,.5); }
+  .gift { padding: 14px; text-align: center; border: 1px solid #22c55e; border-radius: 8px; color: #86efac; background: rgba(34,197,94,.08); font-size: 14px; line-height: 1.7; }
+  .chip { border: 1px solid #334155; border-radius: 10px; padding: 10px 12px; background: #0b1220; flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 4px; }
+  .chip b { font-size: 13px; color: #e2e8f0; }
+  .chip .chip-count { font-size: 22px; font-weight: 700; color: #fbbf24; font-family: Consolas, monospace; }
+  .chip .chip-desc { font-size: 11.5px; color: #64748b; line-height: 1.5; }
+  .chip.skip { border-color: rgba(34,197,94,.6); }
+  .chip.skip .chip-count { color: #4ade80; }
+  .list { list-style: none; display: flex; flex-direction: column; gap: 2px; max-height: 180px; overflow-y: auto; border: 1px dashed #334155; border-radius: 6px; padding: 6px; font-size: 12px; color: #94a3b8; font-family: Consolas, monospace; }
+  .list .dim { color: #475569; }
+  .verdict { display: flex; flex-direction: column; gap: 6px; font-family: Consolas, monospace; font-size: 12.5px; }
+  .verdict .pass { color: #4ade80; }
+  .verdict .fail { color: #f87171; }
+  .verdict .pending { color: #64748b; }
+  .sandbox { border: 1px dashed #a855f7; border-radius: 8px; padding: 8px; background: rgba(168,85,247,.06); }
+  .sandbox .rowlabel { margin-bottom: 4px; }
+  .sandbox button { padding: 6px 12px; font-size: 12.5px; border-radius: 6px; border: 1px solid #a855f7; background: transparent; color: #d8b4fe; cursor: pointer; }
+  @keyframes pulse { 50% { opacity: .45; } }
+  .logs { flex: 1; min-height: 120px; max-height: 240px; overflow-y: auto; background: #0b1220; border: 1px solid #24324d; border-radius: 8px; padding: 8px 10px; font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.9; }
+  .logs .empty { color: #475569; }
+  .log-time { color: #64748b; margin-right: 4px; }
+  footer { margin-top: 20px; color: #64748b; font-size: 13px; line-height: 1.9; }
+  footer code { background: #1e293b; padding: 1px 6px; border-radius: 4px; color: #7dd3fc; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- demo 源码:等 React 19 模块加载完成后,由页面底部的引导脚本手动 Babel 编译执行 -->
+<script type="text/plain" id="demo-source">
+const {
+  useState, useRef, useEffect, useMemo, useCallback, useContext, Suspense, Profiler, lazy,
+  createContext, memo, startTransition, use, act, captureOwnerStack,
+} = React;
+const { createRoot } = ReactDOM;
+
+function now() {
+  const d = new Date();
+  return d.toLocaleTimeString("zh-CN", { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0");
+}
+
+// 日志直接写 DOM(绕开 React 状态),保证时间顺序真实、不受渲染干扰
+function log(panelId, msg, color) {
+  const box = document.getElementById(panelId);
+  if (!box) return; // 首次渲染提交到 DOM 之前,日志容器还不存在
+  const empty = box.querySelector(".empty");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  const t = document.createElement("span");
+  t.className = "log-time";
+  t.textContent = "[" + now() + "] ";
+  const m = document.createElement("span");
+  m.textContent = msg;
+  m.style.color = color || "#cbd5e1";
+  row.appendChild(t);
+  row.appendChild(m);
+  box.prepend(row);
+  while (box.children.length > 100) box.removeChild(box.lastChild);
+}
+
+/* ═══════════ 卡片 A:createContext —— 开频道、广播、收听 ═══════════ */
+const ThemeContext = createContext("light"); // ① 必须写在组件外(模块顶层):useContext 靠对象身份对频道
+
+function ThemedButton({ tag, logId }) {
+  const theme = useContext(ThemeContext); // ③ 后代收听:头顶最近 Provider 的 value;没有 Provider 就拿默认值
+  return (
+    <button
+      className={"mini " + theme}
+      onClick={() => log(logId,
+        "点「" + tag + "」按钮 → useContext 读到 " + (tag === "里层" ? "Provider 的 value" : "createContext 的默认值") + " = " + theme,
+        tag === "里层" ? "#d8b4fe" : "#fcd34d")}
+    >
+      {tag}:{theme}
+    </button>
+  );
+}
+
+function ContextDemo({ logId }) {
+  const [theme, setTheme] = useState("dark"); // theme 就是 Provider 广播的内容,存在祖先的 state 里
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div>
+        <div className="rowlabel">头顶没有 Provider(读默认值 "light")</div>
+        <div className="flexline">
+          <ThemedButton tag="外层" logId={logId} />
+        </div>
+      </div>
+      <div>
+        <div className="rowlabel">被 Provider 包住(value={"{theme}"},来自祖先 state)</div>
+        <div className="flexline">
+          <ThemeContext.Provider value={theme}>
+            <ThemedButton tag="里层" logId={logId} />
+          </ThemeContext.Provider>
+        </div>
+      </div>
+      <button className="big" onClick={() => {
+        const next = theme === "dark" ? "light" : "dark";
+        setTheme(next);
+        log(logId, "切换 → setTheme('" + next + "') → Provider 的 value 变了 → 凡是包住的组件自动重渲染读到新值;Provider 外的按钮纹丝不动", "#fbbf24");
+      }}>切换 Provider 广播的主题(当前 {theme})</button>
+    </div>
+  );
+}
+
+/* ═══════════ 卡片 B:lazy —— 首次渲染才加载,加载完缓存 ═══════════ */
+let factoryCalls = 0; // 工厂被调用了几次?用它证明 lazy 有缓存
+
+function makeLazy(n) {
+  // lazy(工厂):工厂返回 Promise,resolve 必须是 { default: 组件 }(和 ES 模块的 default 导出对齐)
+  return lazy(() => {
+    factoryCalls++;
+    log("logs-b", "① lazy 的工厂函数被调用(累计第 " + factoryCalls + " 次)→ 返回 Promise,1.5 秒后才 resolve", "#fbbf24");
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        log("logs-b", "③ Promise resolve({ default: 组件 }) → React 重试渲染子树,真组件整体替换 fallback", "#93c5fd");
+        resolve({
+          default: function Gift() {
+            return <div className="gift">🎁 真组件加载完成(第 {n} 个 lazy,模块已就位)</div>;
+          },
+        });
+      }, 1500);
+    });
+  });
+}
+
+function LazyDemo({ logId }) {
+  const [LazyComp, setLazyComp] = useState(null); // 当前用的 lazy 组件
+  const [n, setN] = useState(0); // n 同时当 key:变了 = 卸载重挂
+
+  function fresh() {
+    const next = n + 1;
+    setN(next);
+    setLazyComp(makeLazy(next)); // 新建一个 lazy → 又要从头加载一次
+    log(logId, "▶️ lazy(() => import(…)) 建好(注意:建在事件处理器里是演示需要,真实项目要写在模块顶层)", "#fbbf24");
+  }
+
+  const Comp = LazyComp;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="row2">
+        <button className="big" onClick={fresh}>📦 新建一个 lazy 并挂载(等 1.5 秒)</button>
+        {Comp && (
+          <button className="remount" onClick={() => {
+            setN(n + 1); // 只换 key:组件还是同一个 lazy → 卸载重挂,但不重新加载
+            log(logId, "♻️ 卸载再挂载同一个 lazy:工厂没有被再次调用(见计数),不出现 fallback —— lazy 缓存了解析结果", "#4ade80");
+          }}>♻️ 卸载再挂载(验证缓存)</button>
+        )}
+      </div>
+      {Comp && (
+        <Suspense fallback={<div className="fallback">⏳ lazy 的模块还没就绪,fallback 顶班……</div>}>
+          <Comp key={n} />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════ 卡片 C:memo —— props 没变就跳过重渲染 ═══════════ */
+let plainRenders = 0, brokenRenders = 0, memoRenders = 0;
+
+function Chip({ title, count, tone, desc, skip }) {
+  return (
+    <div className={"chip" + (skip ? " skip" : "")} style={tone ? { borderColor: tone } : null}>
+      <b>{title}</b>
+      <div className="chip-count">渲染 {count} 次</div>
+      <div className="chip-desc">{desc}</div>
+    </div>
+  );
+}
+
+function PlainChild() {
+  plainRenders++; // 没包 memo:父渲染我也渲染
+  return <Chip title="普通子组件" count={plainRenders} desc="没包 memo,父组件渲染它就跟着渲染" />;
+}
+
+const MemoBrokenChild = memo(function MemoBrokenChild({ item }) {
+  brokenRenders++; // 包了 memo,但每次收到的 item 都是全新对象 → 浅比较不等 → 白渲染
+  return <Chip title="memo 子组件(不稳定 props)" count={brokenRenders} tone="rgba(239,68,68,.5)" desc="父组件每次渲染都造新对象/新函数传给它,memo 的浅比较永远不相等 → memo 失效" />;
+});
+
+const MemoChild = memo(function MemoChild({ label }) {
+  memoRenders++; // 包了 memo + props 引用稳定 → 跳过
+  return <Chip title="memo 子组件(稳定 props)" count={memoRenders} skip desc="props 用 useMemo/useCallback 稳住引用,浅比较相等 → 直接复用上次渲染结果" />;
+});
+
+function MemoDemo({ logId }) {
+  const [count, setCount] = useState(0);
+  // 稳定 props 的正确姿势(06 篇的孪生兄弟):
+  const stableObj = useMemo(() => ({ from: "useMemo" }), []); // 依赖 [] → 永远同一个对象
+  const stableFn = useCallback(() => {}, []);                 // 依赖 [] → 永远同一个函数
+
+  function report() {
+    log(logId,
+      "报数:普通 " + plainRenders + " 次 / memo-失效 " + brokenRenders + " 次 / memo-生效 " + memoRenders + " 次(含首次挂载各 1 次)。父组件每 +1,前两个跟着涨,memo-生效纹丝不动",
+      "#fbbf24");
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="row2" style={{ alignItems: "stretch" }}>
+        <PlainChild />
+        <MemoBrokenChild item={{ n: count }} onPing={() => {}} />
+        <MemoChild label="稳定" obj={stableObj} onPing={stableFn} />
+      </div>
+      <div className="row2">
+        <button className="big" onClick={() => {
+          setCount(count + 1);
+          log(logId, "父组件 +1 → 父组件重渲染:左边的照常渲染;中间的包了 memo 但每次收到新 item/onPing,照样渲染;右边的 props 引用没变 → 跳过", "#fbbf24");
+        }}>父组件 count + 1(当前 {count})</button>
+        <button className="remount" onClick={report}>📋 报数</button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════ 卡片 D:startTransition —— 把不急的更新标记为过渡 ═══════════ */
+function BigList({ query }) {
+  // ⚠️ 故意的坏代码:渲染里忙等 ~80ms,模拟一次昂贵的「过滤 + 画大列表」渲染(仅演示)
+  const deadline = performance.now() + 80;
+  let sink = 1;
+  while (performance.now() < deadline) sink += Math.sqrt(sink + 1);
+
+  const rows = [];
+  for (let i = 0; i < 120; i++) {
+    if (String(i).includes(query)) rows.push(<li key={i}>第 {i} 号{query === "" ? "" : " · 含 \"" + query + "\""}</li>);
+  }
+  return <ul className="list">{rows.length ? rows : <li className="dim">无匹配</li>}</ul>;
+}
+
+function SyncPanel({ logId }) {
+  const [text, setText] = useState("");
+  return (
+    <div className="panel-box red">
+      <div className="rowlabel">普通模式:一个 setState,输入框和列表一起急</div>
+      <input value={text} placeholder="连续快打 096 试试手感…" onChange={(e) => {
+        setText(e.target.value);
+        log(logId, "输入 \"" + e.target.value + "\" → setQuery 同步更新 → 整个面板(含 ~80ms 的列表)立刻重画,打字被列表拖住", "#fca5a5");
+      }} />
+      <Profiler id="普通列表" onRender={(id, phase, actual) =>
+        log(logId, "[" + id + "] " + phase + " 实际耗时 " + actual.toFixed(1) + "ms", "#fca5a5")}>
+        <BigList query={text} />
+      </Profiler>
+    </div>
+  );
+}
+
+function TransitionPanel({ logId }) {
+  const [text, setText] = useState("");   // 急:输入框自己的值
+  const [query, setQuery] = useState(""); // 缓:列表用的值
+
+  return (
+    <div className="panel-box blue">
+      <div className="rowlabel">过渡模式:输入框急,列表缓(startTransition)</div>
+      <input value={text} placeholder="同样连续快打 096…" onChange={(e) => {
+        setText(e.target.value); // 急更新:输入框立刻跟上,不被列表拖住
+        startTransition(() => {  // 缓更新:列表的渲染可以被打断、可以让路
+          setQuery(e.target.value);
+        });
+        log(logId, "输入 \"" + e.target.value + "\" → 输入框同步更新;setQuery 被包进 startTransition → 列表慢半拍、可打断", "#93c5fd");
+      }} />
+      <Profiler id="过渡列表" onRender={(id, phase, actual) =>
+        log(logId, "[" + id + "] " + phase + " 实际耗时 " + actual.toFixed(1) + "ms(连打时中间状态可能被整体跳过)", "#93c5fd")}>
+        <BigList query={query} />
+      </Profiler>
+    </div>
+  );
+}
+
+function TransitionDemo({ logId }) {
+  return (
+    <div className="row2" style={{ alignItems: "stretch" }}>
+      <SyncPanel logId={logId} />
+      <TransitionPanel logId={logId} />
+    </div>
+  );
+}
+
+/* ═══════════ 卡片 E:use —— 读 Promise / 读 Context,还能写在条件里 ═══════════ */
+const dataPromises = {}; // ⚠️ promise 必须缓存!在渲染里现造新 promise 会无限挂起
+
+function getDataPromise(which) {
+  if (!dataPromises[which]) {
+    log("logs-e", "① 给 \"" + which + "\" 建 promise(缓存起来,渲染里反复用同一颗):1.2 秒后 resolve", "#fbbf24");
+    dataPromises[which] = new Promise((resolve) =>
+      setTimeout(() => {
+        log("logs-e", "③ \"" + which + "\" 的 promise resolve → React 重试,use 返回数据", "#93c5fd");
+        resolve(which + " 组数据(1.2 秒后才就绪)");
+      }, 1200));
+  }
+  return dataPromises[which];
+}
+
+function DataViewer({ which }) {
+  // use 不是 Hook:可以写在 if 里,根据条件读不同的东西(useState/useContext 做不到)
+  if (which === "A") {
+    const a = use(getDataPromise("A"));
+    return <div className="gift">✅ use(promise) 拿到:{a}</div>;
+  }
+  const b = use(getDataPromise("B"));
+  return <div className="gift">✅ use(promise) 拿到:{b}</div>;
+}
+
+function MaybeReader({ enabled }) {
+  if (!enabled) {
+    return <div className="kv">🚫 条件为 false:这次渲染根本没读 context —— use 可以有条件地调用(普通 Hook 不行)</div>;
+  }
+  const theme = use(ThemeContext); // 读 Context 与 useContext 等价
+  return <div className="kv">✅ 条件为 true:use(ThemeContext) 读到 <b>{theme}</b></div>;
+}
+
+function UseDemo({ logId }) {
+  const [which, setWhich] = useState("A");
+  const [enabled, setEnabled] = useState(true);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="row2">
+        <button className="mini" onClick={() => { setWhich("A"); log(logId, "切到 A → DataViewer 走 if (which === 'A') 分支,use 读 A 的 promise", "#93c5fd"); }}>读 A</button>
+        <button className="mini" onClick={() => { setWhich("B"); log(logId, "切到 B → 走另一个分支,use 读 B 的 promise(注意 B 首次也要等 1.2 秒)", "#93c5fd"); }}>读 B</button>
+      </div>
+      <Suspense fallback={<div className="fallback">⏳ use 遇到还没就绪的 promise → 子树挂起,Suspense 顶班</div>}>
+        <DataViewer key={which} which={which} />
+      </Suspense>
+      <div style={{ borderTop: "1px dashed #334155", paddingTop: 8 }}>
+        <label className="kv" style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+          <input type="checkbox" checked={enabled} onChange={(e) => { setEnabled(e.target.checked); log(logId, "开关 = " + e.target.checked + " → MaybeReader 这次渲染" + (e.target.checked ? "调用了" : "没调用") + " use(Context)", "#93c5fd"); }} />
+          use(Context) 的条件开关(把卡片 A 的 ThemeContext 再用一遍)
+        </label>
+        <div style={{ marginTop: 6 }}>
+          <ThemeContext.Provider value="dark">
+            <MaybeReader enabled={enabled} />
+          </ThemeContext.Provider>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════ 卡片 F:act —— 测试里包住更新,确保断言前已经 flush ═══════════ */
+function ActCounter() {
+  const [n, setN] = useState(0);
+  return <button onClick={() => setN(n + 1)}>act 计数:{n}</button>;
+}
+
+function ActDemo({ logId }) {
+  const [verdicts, setVerdicts] = useState([
+    { id: 1, text: "测试 1(不用 act):待运行", cls: "pending" },
+    { id: 2, text: "测试 2(用 act):待运行", cls: "pending" },
+  ]);
+  const sandboxRef = useRef(null);
+
+  async function runTests() {
+    // 模拟测试环境三件套:① 告诉 React「现在是测试环境」(否则 act 会告警);
+    // ② 造一个独立容器挂被测组件;③ 测完恢复环境、卸载 root
+    window.IS_REACT_ACT_ENVIRONMENT = true;
+    const box = sandboxRef.current;
+    box.innerHTML = "";
+    const container = document.createElement("div");
+    box.appendChild(container);
+    const root = createRoot(container);
+
+    function setVerdict(id, ok, detail) {
+      setVerdicts((prev) => prev.map((v) => v.id === id
+        ? { ...v, text: (ok ? "✅ PASS " : "❌ FAIL ") + detail, cls: ok ? "pass" : "fail" }
+        : v));
+    }
+
+    try {
+      // —— 测试 1:不用 act ——
+      await act(async () => { root.render(<ActCounter />); }); // 挂载只是准备工作,也顺手包上
+      const btn = container.querySelector("button");
+      log(logId, "[测试 1] 挂载完成,找到被测按钮 → btn.click() → 立刻断言文字", "#fbbf24");
+      btn.click(); // 不包 act:点击触发的 setState 只是「预约」,DOM 此刻还没变
+      const txt1 = btn.textContent;
+      const ok1 = txt1.includes("act 计数:1");
+      setVerdict(1, ok1, "不用 act:点击后立刻断言 → 实际读到 \"" + txt1 + "\"(React 还没 flush,更新只是被预约)");
+      log(logId, "[测试 1] 断言" + (ok1 ? "通过" : "失败") + ":读到 \"" + txt1 + "\" —— 没有 act,更新没被强制执行完", ok1 ? "#4ade80" : "#f87171");
+
+      // —— 测试 2:用 act(换一个全新挂载的同一组件,保证和测试 1 只差「有没有 act」)——
+      root.unmount();
+      const container2 = document.createElement("div");
+      box.appendChild(container2);
+      const root2 = createRoot(container2);
+      await act(async () => { root2.render(<ActCounter />); });
+      const btn2 = container2.querySelector("button");
+      await act(async () => { btn2.click(); }); // act:把里面的更新同步跑完(渲染+Effect)才放行
+      const txt2 = btn2.textContent;
+      const ok2 = txt2.includes("act 计数:1");
+      setVerdict(2, ok2, "用 act:同样的点击包进 act 再断言 → 实际读到 \"" + txt2 + "\"");
+      log(logId, "[测试 2] act 执行完毕,React 已把更新跑完 → 断言" + (ok2 ? "通过" : "失败") + ":\"" + txt2 + "\"", ok2 ? "#4ade80" : "#f87171");
+    } finally {
+      root.unmount();
+      delete window.IS_REACT_ACT_ENVIRONMENT;
+      log(logId, "收尾:root.unmount() + 删掉 IS_REACT_ACT_ENVIRONMENT(真实 Jest/Vitest 配置里这是一次性全局设置)", "#94a3b8");
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <button className="big" onClick={() => { log(logId, "▶️ 开始迷你测试(模拟 Jest 环境:IS_REACT_ACT_ENVIRONMENT = true)", "#fbbf24"); runTests(); }}>▶️ 运行迷你测试</button>
+      <div className="sandbox" ref={sandboxRef}>
+        <div className="rowlabel">被测组件挂载区(测完自动卸载清空)</div>
+      </div>
+      <div className="verdict">
+        {verdicts.map((v) => <div key={v.id} className={v.cls}>{v.text}</div>)}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════ 卡片 G:captureOwnerStack —— 拿到「谁渲染了它」的组件链 ═══════════ */
+function DeepChild() {
+  const stack = captureOwnerStack(); // 必须在渲染期间调用;生产构建返回 null
+  const lines = stack === null ? ["null(生产构建或不在渲染期间)"] : stack.split("\n");
+  return (
+    <div>
+      <div className="kv">captureOwnerStack() 的返回(deepChild 的「组件层谱系」):</div>
+      <pre className="plain">{lines.join("\n")}</pre>
+      <div className="kv" style={{ marginTop: 6 }}>
+        这是<b>组件的父子链</b>(谁渲染了谁),不是 DOM 父子链 —— 错误上报时附上它,一眼定位来源组件。<b>仅开发构建有内容</b>。
+      </div>
+    </div>
+  );
+}
+
+function MidLayer() {
+  return <DeepChild />; // 中间层:owner 栈里会出现它
+}
+
+function OwnerStackDemo() {
+  return <MidLayer />;
+}
+
+/* ═══════════ 通用卡片外壳 ═══════════ */
+function Card(props) {
+  return (
+    <section className="card">
+      <h2>
+        <span className={"tag " + props.tagClass}>{props.tag}</span>
+        <code>{props.title}</code>
+      </h2>
+      <pre>{props.code}</pre>
+      <div className={"note " + props.noteClass}>{props.note}</div>
+      <div className="live">{props.children}</div>
+      <div className="logs" id={props.logId}>
+        <div className="empty">暂无日志…</div>
+      </div>
+    </section>
+  );
+}
+
+function App() {
+  return (
+    <div className="wrap">
+      <h1>🧰 验证:内置 API —— createContext / lazy / memo / startTransition / use / act / captureOwnerStack</h1>
+      <p className="intro">
+        本页验证 React 官方参考(<a href="https://zh-hans.react.dev/reference/react/apis" target="_blank" rel="noreferrer">zh-hans.react.dev/reference/react/apis</a>)的「内置的 React API」一节,对应笔记 <code>notes/09-React-API.md</code>。
+        <br />
+        <code>react</code> 包的导出分三类:<b>Hooks</b>(06 篇)、<b>内置组件</b>(08 篇)、剩下的这批 <b>API</b>(本篇)。七张卡各验一件事:① createContext 开频道/广播/默认值;② lazy 首次渲染才加载且结果有缓存;③ memo 的浅比较与 useMemo/useCallback 稳引用;④ startTransition 给不急的更新让路;⑤ use 读 Promise/Context 还能写进条件;⑥ act 在测试里强制 flush;⑦ captureOwnerStack 打印组件谱系。
+        <br />
+        ⚠️ 沿用 08 篇的做法:esm.sh 的 React 19.2 <b>development 构建</b>(import map + ESM,需要联网;双击报 CORS 错就用本地静态服务打开)。<code>cache</code>/<code>cacheSignal</code>(Server Components 专用)、<code>addTransitionType</code> 与 <code>experimental_taint*</code>(experimental 通道)在纯浏览器页里验不了,见笔记。
+      </p>
+
+      <div className="cards">
+        <Card
+          tag="📡 createContext" tagClass="info"
+          title="开一条广播频道(和 useContext 搭配)"
+          code={"// ① 模块顶层开频道:参数是「头顶没有 Provider 时的默认值」\nconst ThemeContext = createContext('light');\n\n// ② 祖先用 Provider 广播:value 必须叫 value\n<ThemeContext.Provider value={theme}>\n  <ThemedButton />\n</ThemeContext.Provider>\n\n// ③ 后代收听(06 篇的 useContext)\nconst theme = useContext(ThemeContext);\n\n// React 19:Provider 也能直接写 <ThemeContext value={theme}>"}
+          note="外层按钮在 Provider 外,点它读到默认值 light;里层按钮被 Provider 包住,读到祖先 state 里的 dark。点「切换」只有 Provider 范围内的组件重渲染。"
+          noteClass="info" logId="logs-a"
+        >
+          <ContextDemo logId="logs-a" />
+        </Card>
+
+        <Card
+          tag="📦 lazy" tagClass="info"
+          title="首次渲染才加载,加载结果有缓存"
+          code={"// 模块顶层(别写在组件渲染里!)\nconst MarkdownPreview = lazy(() => import('./MarkdownPreview.js'));\n\n<Suspense fallback={<Loading />}>\n  <MarkdownPreview />\n</Suspense>\n\n// 约定:工厂返回的 Promise 必须 resolve 成\n// { default: 组件 } —— 和 ES 模块的 default 导出对齐"}
+          note="点「新建 lazy 并挂载」:工厂被调用 → 子树挂起 → fallback 顶班 1.5 秒 → resolve 后真组件顶替。点「卸载再挂载」:工厂不再被调用、没有 fallback —— lazy 缓存了解析结果。"
+          noteClass="info" logId="logs-b"
+        >
+          <LazyDemo logId="logs-b" />
+        </Card>
+
+        <Card
+          tag="🧊 memo" tagClass="ok"
+          title="props 浅比较相等 → 跳过重渲染"
+          code={"// 包一层 memo:props 浅比较不相等才重渲染\nconst MemoChild = memo(function MemoChild({ label }) { … });\n\n// 但对象/函数 props 每次渲染都是新引用 → memo 失效!\n<MemoBrokenChild item={{ n: count }} onPing={() => {}} />\n\n// 解法:useMemo 缓存对象、useCallback 缓存函数\nconst obj = useMemo(() => ({ n }), [n]);\nconst fn  = useCallback(() => {…}, []);\n\n// 第二个参数可自定义比较:((prev, next) => …) 返回 true = 跳过"}
+          note="三个子组件对照:普通的无条件陪跑;包了 memo 但吃新对象/新函数的照样陪跑(浅比较永远不等);props 引用被 useMemo/useCallback 稳住的才真跳过。点 +1 再「报数」核对。"
+          noteClass="ok" logId="logs-c"
+        >
+          <MemoDemo logId="logs-c" />
+        </Card>
+
+        <Card
+          tag="🕊️ startTransition" tagClass="info"
+          title="把不急的更新标记为「可让路」"
+          code={"// 输入框急、列表缓:拆成两个 state\nconst [text, setText] = useState('');    // 急:打字跟手\nconst [query, setQuery] = useState('');  // 缓:列表慢半拍\n\nonChange={(e) => {\n  setText(e.target.value);      // 急更新,立即执行\n  startTransition(() => {       // 缓更新:可打断、可让路\n    setQuery(e.target.value);\n  });\n}}\n\n// 要 isPending 转圈提示?用 useTransition(06 篇):\n// const [isPending, start] = useTransition();"}
+          note="两个输入框都连续快打「096」对比手感:普通模式每个键都被 ~80ms 的列表渲染拖住;过渡模式输入框秒回,列表慢半拍。连打时过渡的中间渲染可能被整体跳过(日志条数更少)。"
+          noteClass="info" logId="logs-d"
+        >
+          <TransitionDemo logId="logs-d" />
+        </Card>
+
+        <Card
+          tag="🪝 use" tagClass="ok"
+          title="读 Promise / Context,还能写进 if"
+          code={"// 1) use(promise):读着读着「挂起」,配 Suspense\n//    ⚠️ promise 要缓存(模块级 / cache / useMemo),\n//    渲染里现造新 promise = 无限挂起\nconst data = use(fetchData(id));\n\n// 2) use(Context):等价 useContext\nconst theme = use(ThemeContext);\n\n// 3) use 不是 Hook!可以写在条件/循环里:\nif (which === 'A') {\n  const a = use(promiseA);\n} else {\n  const b = use(promiseB);\n}"}
+          note="上半:点「读 A / 读 B」—— use 遇到未就绪的 promise 就挂起,由 Suspense 顶班;promise 按模块缓存,第二次读直接出结果。下半:勾选开关决定这次渲染调不调 use(Context) —— 条件调用,普通 Hook 做不到。"
+          noteClass="ok" logId="logs-e"
+        >
+          <UseDemo logId="logs-e" />
+        </Card>
+
+        <Card
+          tag="🧪 act" tagClass="bad"
+          title="测试专用:断言前强制 flush 更新"
+          code={"// 测试环境一次性配置(Jest/Vitest 全局 setup):\nglobalThis.IS_REACT_ACT_ENVIRONMENT = true;\n\nawait act(async () => {\n  btn.click();          // 触发 setState\n});                     // ← 到这里 React 已把渲染+Effect 全跑完\nexpect(btn.textContent).toContain('act 计数:1');  // 稳过\n\n// React 19 起 act 从 'react' 导出;\n// 平时用 Testing Library:render/fireEvent 内部已包好"}
+          note="不包 act:点击后立刻断言,读到的还是旧文字 —— 更新只是被「预约」,没 flush;包进 act:act 会把里面的更新同步跑完才放行,断言稳过。点「运行迷你测试」亲眼看 FAIL→PASS 对照。"
+          noteClass="bad" logId="logs-f"
+        >
+          <ActDemo logId="logs-f" />
+        </Card>
+
+        <Card
+          tag="🧬 captureOwnerStack" tagClass="info"
+          title="拿到「谁渲染了它」的组件栈"
+          code={"import { captureOwnerStack } from 'react';\n\nfunction ErrorReporter({ error }) {\n  // 必须在「渲染期间」调用\n  const stack = captureOwnerStack();\n  reportToServer(error, stack); // 例如附带在错误上报里\n  …\n}\n\n// 返回一段类似错误堆栈的字符串,从近到远列祖先:\n//   at MidLayer (…)\n//   at OwnerStackDemo (…)\n//   at App (…)\n// 注意:调它的组件自己不在栈里——栈里只有「谁渲染了它」\n// ⚠️ 仅开发构建有内容;生产构建返回 null"}
+          note="不用点任何按钮:DeepChild 在渲染时调 captureOwnerStack(),栈里从近到远列出它的祖先(MidLayer → OwnerStackDemo → App)——注意 DeepChild 自己不在栈里。它是组件层谱系,不是 DOM 父子链;生产构建里是 null。"
+          noteClass="info" logId="logs-g"
+        >
+          <OwnerStackDemo />
+        </Card>
+      </div>
+
+      <footer>
+        本页面用 React 19.2(development 构建,esm.sh ESM + import map)+ Babel Standalone 在浏览器里现场编译 JSX,无需构建工具;需要联网,若双击打开报 CORS 错误,用任意静态服务器打开本目录。
+        <br />
+        结论:① <code>createContext</code> 开频道 + Provider 广播 + <code>useContext</code> 收听,头顶没 Provider 用默认值;② <code>lazy</code> 首次渲染才 import、必须 resolve <code>{"{default: 组件}"}</code>、结果有缓存,挂起交给 <code>Suspense</code> 顶班;
+        ③ <code>memo</code> 只做 props 浅比较,对象/函数 props 要用 <code>useMemo</code>/<code>useCallback</code> 稳住引用才有效;
+        ④ <code>startTransition</code> 把不急的更新标成可让路:急的(输入框)先走,缓的(大列表)慢半拍、可打断;要 pending 提示用 <code>useTransition</code>;
+        ⑤ <code>use</code> 读 promise(配 Suspense,注意缓存 promise)和 context,且不像 Hook 那样限制只能在顶层;
+        ⑥ <code>act</code> 是测试专用:把更新同步跑完再放行,断言才稳(<code>IS_REACT_ACT_ENVIRONMENT</code> 标志 + Testing Library 已内置);
+        ⑦ <code>captureOwnerStack</code> 在渲染期间拿组件谱系,仅开发构建有内容;其余四个(<code>cache</code>/<code>cacheSignal</code>/<code>addTransitionType</code>/<code>experimental_taint*</code>)一个活在 Server Components、三个还在实验通道,详见笔记 09。
+      </footer>
+    </div>
+  );
+}
+
+createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+<!-- 引导脚本:等 esm.sh 的 React 19 模块加载好 → 挂到 window → 手动编译并运行 demo 源码 -->
+<script type="module">
+  import * as React from "react";
+  import ReactDOMClient from "react-dom/client";
+  window.React = React;
+  window.ReactDOM = ReactDOMClient;
+  const source = document.getElementById("demo-source").textContent;
+  const compiled = Babel.transform(source, { presets: ["react"] }).code;
+  const runner = document.createElement("script");
+  runner.textContent = compiled;
+  document.body.appendChild(runner);
+</script>
+</body>
+</html>
