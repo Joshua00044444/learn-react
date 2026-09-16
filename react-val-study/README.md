@@ -12,12 +12,6 @@
 | [react-built-in-components-demo.html](./react-built-in-components-demo.html) | [08-内置组件.md](../notes/08-内置组件.md) | `<Fragment>` 不留 DOM 节点 / `<Profiler>` 计时 / `<StrictMode>` 双跑 / `<Suspense>` 顶班 / `<Activity>` 隐藏不销毁(React 19.2,esm.sh 引入) |
 | [react-built-in-api-demo.html](./react-built-in-api-demo.html) | [09-React-API.md](../notes/09-React-API.md) | `createContext` 默认值与广播范围 / `lazy` 只加载一次有缓存 / `memo` 浅比较与稳引用 / `startTransition` 急缓分离 / `use` 读 promise+条件调用 / `act` 断言前 flush / `captureOwnerStack` 组件栈 |
 
-没有对应 demo 的笔记(纯概念,没什么可点的):
-
-- [01-JSX-是什么.md](../notes/01-JSX-是什么.md)
-- [02-JSX-与-JS-的区别.md](../notes/02-JSX-与-JS-的区别.md)
-- [03-React-的本质.md](../notes/03-React-的本质.md)
-
 ## 怎么打开
 
 直接**双击任意 HTML 文件**用浏览器打开即可(页面从 CDN 加载 React,需要联网)。
